@@ -110,8 +110,14 @@ export function Dashboard() {
 
   const userLocation = MOCK_LOCATIONS.find(loc => loc.id === user?.locationId);
   const locationId = user?.locationId || 'LOC001';
-  const activeEmergencies = getActiveEmergencies(locationId);
-  const allEmergencies = emergencies.filter(e => e.locationId === locationId);
+
+  const activeEmergencies = getActiveEmergencies(locationId).filter(e => 
+  user?.role === 'guest' ? e.reportedBy === user.name : true
+);
+const allEmergencies = emergencies.filter(e => 
+  e.locationId === locationId && (user?.role === 'guest' ? e.reportedBy === user.name : true)
+);
+
   const pendingCount = activeEmergencies.filter(e => e.status === 'pending').length;
   const inProgressCount = activeEmergencies.filter(e => e.status === 'in-progress').length;
   const criticalCount = activeEmergencies.filter(e => e.level === 3).length;
@@ -188,7 +194,7 @@ export function Dashboard() {
           </div>
 
           {/* ─── CRITICAL BANNER ─── */}
-          {criticalCount > 0 && (
+          {user?.role !== 'guest' && criticalCount > 0 && (
             <div className="mb-5 bg-red-600 text-white p-4 rounded-xl shadow-lg animate-pulse">
               <div className="flex items-center gap-3">
                 <AlertTriangle className="w-6 h-6 shrink-0" />
@@ -232,6 +238,7 @@ export function Dashboard() {
           )}
 
           {/* ─── STATS GRID ─── */}
+          {user?.role!=='guest' && (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
             {stats.map((stat) => {
               const Icon = stat.icon;
@@ -247,7 +254,7 @@ export function Dashboard() {
                 </div>
               );
             })}
-          </div>
+          </div>)}
 
           {/* ─── EMERGENCIES ─── */}
           <div className="bg-white rounded-xl border shadow-sm">
@@ -322,6 +329,7 @@ export function Dashboard() {
       </div>
 
       {/* ─── RIGHT PANEL: AI SUGGESTIONS ─── */}
+      {user?.role!=='guest'&&(
       <div className={`${showSuggestions ? 'w-72' : 'w-10'} transition-all duration-300 bg-gray-900 text-white shrink-0 flex flex-col border-l border-gray-800 relative overflow-hidden`}>
         {/* Toggle button */}
         <button
@@ -341,7 +349,6 @@ export function Dashboard() {
               </div>
               <p className="text-xs text-gray-500">Smart recommendations for your system</p>
             </div>
-
             {/* Quick actions */}
             <div className="px-3 py-3 border-b border-gray-700/50 shrink-0">
               <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Quick Actions</p>
@@ -435,7 +442,7 @@ export function Dashboard() {
             <div className="text-xs text-gray-600 [writing-mode:vertical-lr] rotate-180">AI Suggestions</div>
           </div>
         )}
-      </div>
+      </div>)}
 
       {/* ─── QR CODE MODAL ─── */}
       {showQR && (
