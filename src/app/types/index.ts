@@ -4,7 +4,7 @@ export type UserRole = 'guest' | 'staff' | 'admin';
 
 export type EmergencyLevel = 1 | 2 | 3;
 
-export type EmergencyStatus = 'pending' | 'in-progress' | 'resolved';
+export type EmergencyStatus = 'active'|'pending' | 'in-progress' | 'resolved';
 
 export type EmergencyType = 
   | 'medical'

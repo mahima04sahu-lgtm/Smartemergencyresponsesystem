@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../contexts/AuthContext';
 import { useEmergency } from '../contexts/EmergencyContext';
+import { createAlert } from '../../services/api';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -21,7 +22,7 @@ export function EmergencyReport() {
 
   const [emergencyType, setEmergencyType] = useState<EmergencyType>('medical');
   const [emergencyLevel, setEmergencyLevel] = useState<EmergencyLevel>(2);
-  const [location, setLocation] = useState('');
+  const [location, setLocation] = useState(user?.locationId || '');
   const [roomNumber, setRoomNumber] = useState('');
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -40,7 +41,7 @@ export function EmergencyReport() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!location || !description) {
+    if (!description) {
       toast.error('Please fill in all required fields');
       return;
     }
@@ -48,17 +49,22 @@ export function EmergencyReport() {
     setIsSubmitting(true);
 
     try {
-      reportEmergency({
+      // Save to MongoDB via API (so it shows on dashboard)
+      await createAlert({
         type: emergencyType,
         level: emergencyLevel,
-        status: 'pending',
-        location,
+        status: 'active',
+        location: location || user?.locationId || 'Unknown',
         roomNumber: roomNumber || undefined,
-        description,
-        reportedBy: user?.id || '',
-        reportedByName: user?.name || '',
-        locationId: user?.locationId || ''
+        description,                          // ← This is the text the user typed
+        reportedBy: user?.name || 'Guest',
+        reportedByName: user?.name || 'Guest',
+        userRole: user?.role || 'guest',
+        locationId: user?.locationId || '',
+        timestamp: new Date().toISOString()
       });
+
+      toast.success('Emergency reported! Help is on the way.');
 
       // Navigate back to dashboard
       setTimeout(() => {

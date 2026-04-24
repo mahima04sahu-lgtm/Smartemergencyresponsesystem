@@ -32,10 +32,12 @@ export function SOSButton({ size = 'sm', className = '', level = 'HIGH' }: SOSBu
   const handleSOS = () => {
     const data = {
       type: "emergency",
-      level: level,
-      location: user?.locationId || "Main Building", // ✅ Real Location
+      level: level||"HIGH",
+      location: user?.locationId || "Main Building", 
       reportedBy: user?.name || "Guest",
-      userRole: user?.role || "guest",           // ✅ Real Username
+      userRole: user?.role || "guest",
+      description: "Immediate assistance required at " + (user?.locationId || "Main Building"), 
+      status:"active",        
       timestamp: new Date().toISOString(),
     };
 

@@ -19,4 +19,18 @@ router.get("/alerts", async (req, res) => {
   res.json(alerts);
 });
 
+// UPDATE ALERT STATUS
+router.patch("/alert/:id", async (req, res) => {
+  try {
+    const updatedAlert = await Alert.findByIdAndUpdate(
+      req.params.id,
+      { status: req.body.status },
+      { new: true }
+    );
+    res.json(updatedAlert);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

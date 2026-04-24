@@ -1,3 +1,5 @@
+import { useQuery,useQueryClient,useMutation } from '@tanstack/react-query';
+import { getAlerts, updateAlertStatus } from '../../services/api';
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useEmergency } from '../contexts/EmergencyContext';
@@ -90,6 +92,24 @@ export function Dashboard() {
   const { emergencies, getActiveEmergencies, updateEmergencyStatus, resolveEmergency } = useEmergency();
   const navigate = useNavigate();
 
+  const { data: cloudEmergencies } = useQuery({
+    queryKey: ['alerts'],
+    queryFn: getAlerts,
+    refetchInterval: 5000,
+  });
+
+  const queryClient = useQueryClient();
+
+  const statusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) =>
+      updateAlertStatus(id, status),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['alerts'] }),
+  });
+
+  // This combines your local context with the real MongoDB data
+  const combinedEmergencies = (cloudEmergencies as any[]) || emergencies;
+
+
   const [activeTab, setActiveTab] = useState('active');
   const [refreshKey, setRefreshKey] = useState(0);
   const [showQR, setShowQR] = useState(false);
@@ -111,12 +131,17 @@ export function Dashboard() {
   const userLocation = MOCK_LOCATIONS.find(loc => loc.id === user?.locationId);
   const locationId = user?.locationId || 'LOC001';
 
-  const activeEmergencies = getActiveEmergencies(locationId).filter(e => 
-  user?.role === 'guest' ? e.reportedBy === user.name : true
-);
-const allEmergencies = emergencies.filter(e => 
-  e.locationId === locationId && (user?.role === 'guest' ? e.reportedBy === user.name : true)
-);
+    // Filter for Active Emergencies
+  const activeEmergencies = combinedEmergencies.filter(e => 
+    e.status !== 'resolved' && 
+    (user?.role === 'guest' ? (e.reportedBy === user.name || e.reportedBy === user.id) : true)
+  );
+
+  // Filter for All Emergencies
+  const allEmergencies = combinedEmergencies.filter(e => 
+    user?.role === 'guest' ? (e.reportedBy === user.name || e.reportedBy === user.id) : true
+  );
+
 
   const pendingCount = activeEmergencies.filter(e => e.status === 'pending').length;
   const inProgressCount = activeEmergencies.filter(e => e.status === 'in-progress').length;
@@ -284,10 +309,10 @@ const allEmergencies = emergencies.filter(e =>
                     </div>
                   ) : (
                     activeEmergencies.sort((a, b) => b.level - a.level).map(e => (
-                      <EmergencyCard key={e.id} emergency={e}
+                      <EmergencyCard key={e._id || e.id} emergency={e}
                         showActions={user?.role !== 'guest'}
-                        onUpdateStatus={status => updateEmergencyStatus(e.id, status)}
-                        onResolve={() => resolveEmergency(e.id, 'Resolved')}
+                        onUpdateStatus={status => statusMutation.mutate({ id: e._id || e.id, status })}
+                        onResolve={() => statusMutation.mutate({ id: e._id || e.id, status: 'resolved' })}
                       />
                     ))
                   )}
@@ -295,10 +320,10 @@ const allEmergencies = emergencies.filter(e =>
 
                 <TabsContent value="all" className="space-y-3">
                   {allEmergencies.sort((a, b) => new Date(b.reportedAt).getTime() - new Date(a.reportedAt).getTime()).map(e => (
-                    <EmergencyCard key={e.id} emergency={e}
+                    <EmergencyCard key={e._id || e.id} emergency={e}
                       showActions={user?.role !== 'guest'}
-                      onUpdateStatus={status => updateEmergencyStatus(e.id, status)}
-                      onResolve={() => resolveEmergency(e.id, 'Resolved')}
+                      onUpdateStatus={status => statusMutation.mutate({ id: e._id || e.id, status })}
+                      onResolve={() => statusMutation.mutate({ id: e._id || e.id, status: 'resolved' })}
                     />
                   ))}
                   {allEmergencies.length === 0 && (
@@ -314,10 +339,10 @@ const allEmergencies = emergencies.filter(e =>
                     </div>
                   ) : (
                     activeEmergencies.filter(e => e.level === 3).map(e => (
-                      <EmergencyCard key={e.id} emergency={e}
+                      <EmergencyCard key={e._id || e.id} emergency={e}
                         showActions={user?.role !== 'guest'}
-                        onUpdateStatus={status => updateEmergencyStatus(e.id, status)}
-                        onResolve={() => resolveEmergency(e.id, 'Resolved')}
+                        onUpdateStatus={status => statusMutation.mutate({ id: e._id || e.id, status })}
+                        onResolve={() => statusMutation.mutate({ id: e._id || e.id, status: 'resolved' })}
                       />
                     ))
                   )}
