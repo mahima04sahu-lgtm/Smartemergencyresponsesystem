@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, SystemConfig, SystemSettings } from '../types';
 import { MOCK_USERS } from '../utils/mockData';
+import { createSystem as apiCreateSystem, enterSystem as apiEnterSystem } from '../../services/api';
 
 const DEFAULT_SETTINGS: SystemSettings = {
   autoAssignStaff: true,
@@ -68,7 +69,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
-    await new Promise(resolve => setTimeout(resolve, 600));
+    try {
+      const result = await loginStaff(email, password);
+      
+      if (result.success) {
+        const userData = result.user;
+        const systemData = result.system;
+
+        setUser(userData);
+        setSystemConfig(systemData);
+
+        // Store everything needed for system isolation
+        localStorage.setItem('sers_current_user', JSON.stringify(userData));
+        if (systemData) {
+          localStorage.setItem('sers_system_id', systemData._id);
+          localStorage.setItem('sers_system_zones', JSON.stringify(systemData.zones || []));
+          localStorage.setItem('sers_system_config', JSON.stringify(systemData));
+        }
+
+        return true;
+      }
+    } catch (error) {
+      console.warn('Backend login failed, trying fallback:', error);
+    }
+
+    // Fallback for demo users and old systems not in MongoDB
     const allUsers: User[] = JSON.parse(localStorage.getItem('sers_users') || JSON.stringify(MOCK_USERS));
     const foundUser = allUsers.find(u => u.email === email);
     if (foundUser) {
@@ -130,53 +155,85 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     config: Omit<SystemConfig, 'id' | 'createdAt'>,
     adminPassword: string
   ): Promise<{ success: boolean; systemId?: string }> => {
-    await new Promise(resolve => setTimeout(resolve, 1200));
+    try {
+      // 1. Save to MongoDB via API
+      const result = await apiCreateSystem({
+        ...config,
+        settings: DEFAULT_SETTINGS
+      }, adminPassword); // Pass password as second argument as defined in api.js
 
-    const systemId = `SYS${Date.now()}`;
-    const newSystem: SystemConfig = {
-      ...config,
-      id: systemId,
-      createdAt: new Date().toISOString(),
-      settings: DEFAULT_SETTINGS,
-    };
+      if (!result.success) throw new Error('Failed to create system');
 
-    localStorage.setItem('sers_system_config', JSON.stringify(newSystem));
-    setSystemConfig(newSystem);
+      const systemData = result.system;
+      const systemId = result.systemId;
 
-    // Create admin user for this system
-    const adminUser: User = {
-      id: `USR${Date.now()}`,
-      email: config.adminEmail,
-      name: config.adminName,
-      role: 'admin',
-      locationId: systemId,
-      department: 'Administration',
-      availability: 'available',
-      phone: config.adminPhone,
-      authorizationLevel: 'admin',
-    };
+      // 2. Store system info in localStorage
+      localStorage.setItem('sers_system_id', systemId);
+      localStorage.setItem('sers_system_config', JSON.stringify(systemData));
+      localStorage.setItem('sers_system_zones', JSON.stringify(systemData.zones || []));
+      
+      setSystemConfig(systemData);
 
-    const allUsers: User[] = JSON.parse(localStorage.getItem('sers_users') || JSON.stringify(MOCK_USERS));
-    const updatedUsers = [...allUsers, adminUser];
-    localStorage.setItem('sers_users', JSON.stringify(updatedUsers));
-    setUsers(updatedUsers);
+      // 3. Create the local admin user object (matches the one created in backend)
+      const adminUser: User = {
+        id: `USR_ADMIN_${systemId}`,
+        email: config.adminEmail,
+        name: config.adminName,
+        role: 'admin',
+        locationId: systemId,
+        department: 'Administration',
+        availability: 'available',
+        phone: config.adminPhone,
+        authorizationLevel: 'admin',
+      };
 
-    setUser(adminUser);
-    localStorage.setItem('sers_current_user', JSON.stringify(adminUser));
+      const allUsers: User[] = JSON.parse(localStorage.getItem('sers_users') || JSON.stringify(MOCK_USERS));
+      const updatedUsers = [...allUsers, adminUser];
+      localStorage.setItem('sers_users', JSON.stringify(updatedUsers));
+      setUsers(updatedUsers);
 
-    return { success: true, systemId };
+      setUser(adminUser);
+      localStorage.setItem('sers_current_user', JSON.stringify(adminUser));
+
+      return { success: true, systemId };
+    } catch (error) {
+      console.error('System creation error:', error);
+      return { success: false };
+    }
   };
 
   const enterSystem = async (identifier: string): Promise<boolean> => {
-    await new Promise(resolve => setTimeout(resolve, 600));
-    const allUsers: User[] = JSON.parse(localStorage.getItem('sers_users') || JSON.stringify(MOCK_USERS));
-    const foundUser = allUsers.find(u => u.email === identifier || u.phone === identifier);
-    if (foundUser) {
-      setUser(foundUser);
-      localStorage.setItem('sers_current_user', JSON.stringify(foundUser));
-      return true;
+    try {
+      // For now, use the same login logic if they enter an email
+      // In a real app, we would have a separate 'enterByCode' or similar
+      const result = await loginStaff(identifier, 'demo123'); // Fallback or prompt for pwd
+      
+      if (result.success) {
+        const userData = result.user;
+        const systemData = result.system;
+
+        setUser(userData);
+        setSystemConfig(systemData);
+
+        localStorage.setItem('sers_current_user', JSON.stringify(userData));
+        localStorage.setItem('sers_system_id', systemData._id);
+        localStorage.setItem('sers_system_zones', JSON.stringify(systemData.zones || []));
+        localStorage.setItem('sers_system_config', JSON.stringify(systemData));
+
+        return true;
+      }
+      return false;
+    } catch (error) {
+      // Fallback to local search for existing mock users
+      const allUsers = JSON.parse(localStorage.getItem('sers_users') || JSON.stringify(MOCK_USERS));
+      const foundUser = allUsers.find(u => u.email === identifier || u.phone === identifier);
+      if (foundUser) {
+        setUser(foundUser);
+        localStorage.setItem('sers_current_user', JSON.stringify(foundUser));
+        return true;
+      }
+      return false;
     }
-    return false;
   };
 
   const updateSystemSettings = (settings: Partial<SystemSettings>) => {

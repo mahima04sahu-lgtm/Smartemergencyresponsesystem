@@ -99,6 +99,7 @@ export interface SystemConfig {
   adminPhone: string;
   adminName: string;
   createdAt: string;
+  zones?: string[];          // Zones/areas within this system
   aiSuggestedName?: string;
   primaryLocation?: string;
   staffCount?: number;

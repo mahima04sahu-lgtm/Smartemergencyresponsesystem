@@ -28,6 +28,8 @@ export function EmergencyReport() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const userLocation = MOCK_LOCATIONS.find(loc => loc.id === user?.locationId);
+  // Read zones from the current system (saved on system create/enter), fallback to mock
+  const systemZones: string[] = JSON.parse(localStorage.getItem('sers_system_zones') || '[]');
 
   const emergencyTypes: { value: EmergencyType; label: string; icon: string }[] = [
     { value: 'medical', label: 'Medical Emergency', icon: '🏥' },
@@ -193,7 +195,7 @@ export function EmergencyReport() {
                       <SelectValue placeholder="Select location" />
                     </SelectTrigger>
                     <SelectContent>
-                      {userLocation?.zones.map(zone => (
+                      {(systemZones.length > 0 ? systemZones : (userLocation?.zones || [])).map(zone => (
                         <SelectItem key={zone} value={zone}>
                           {zone}
                         </SelectItem>

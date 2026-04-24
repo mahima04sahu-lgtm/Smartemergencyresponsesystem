@@ -8,6 +8,7 @@ import {
   Shield, Zap, ChevronRight, Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { generateZones } from '../../services/api';
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -79,6 +80,7 @@ export function CreateSystem() {
   const [aiGenerating, setAiGenerating] = useState(false);
   const [creating, setCreating] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
+  const [detectedZones, setDetectedZones] = useState<string[]>([]);
   const [form, setForm] = useState<FormData>({
     adminName: '', adminEmail: '', adminPhone: '', password: '', confirmPassword: '',
     otp: '', systemType: '', projectDescription: '', systemName: '', primaryLocation: '',
@@ -126,17 +128,43 @@ export function CreateSystem() {
       return;
     }
     setAiGenerating(true);
-    await new Promise(r => setTimeout(r, 2000));
-    const generated = generateSystemName(form.systemType, form.projectDescription, form.adminName);
-    const suggestions = getAISuggestions(form.systemType, form.projectDescription);
-    setAiSuggestions(suggestions);
-    update('systemName', generated);
-    setAiGenerating(false);
-    setStep(4);
+    try {
+      // 1. Generate Zones using Gemini AI
+      const aiData = await generateZones(form.systemType, form.projectDescription);
+      if (aiData.zones) {
+        setDetectedZones(aiData.zones);
+        setAiSuggestions([
+          `AI detected ${aiData.zones.length} zones from your description.`,
+          `Configured ${form.systemType} emergency protocols.`,
+          `AI suggests adding ${Math.ceil(aiData.zones.length / 2)} responders.`
+        ]);
+      } else {
+        // Fallback to mock if AI fails
+        setDetectedZones(selectedType?.suggestions.split(', ') || []);
+        setAiSuggestions(getAISuggestions(form.systemType, form.projectDescription));
+      }
+
+      const generated = generateSystemName(form.systemType, form.projectDescription, form.adminName);
+      update('systemName', generated);
+      setStep(4);
+    } catch (e) {
+      console.error('AI Generation Error:', e);
+      toast.error('AI generation had a hiccup, using standard configuration.');
+      setDetectedZones(selectedType?.suggestions.split(', ') || []);
+      setStep(4);
+    } finally {
+      setAiGenerating(false);
+    }
   };
 
   const handleCreate = async () => {
     if (!form.systemName) { toast.error('System name is required'); return; }
+    
+    // Use AI detected zones, fallback to type suggestions
+    const zones = detectedZones.length > 0 
+      ? detectedZones 
+      : (selectedType ? selectedType.suggestions.split(', ') : []);
+    
     setCreating(true);
     try {
       const result = await createSystem({
@@ -148,6 +176,7 @@ export function CreateSystem() {
         adminName: form.adminName,
         primaryLocation: form.primaryLocation,
         staffCount: 0,
+        zones: zones,
       }, form.password);
       if (result.success) {
         toast.success('System created successfully!', { description: 'Redirecting to your dashboard...' });

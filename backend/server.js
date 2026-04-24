@@ -5,12 +5,21 @@ const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 
-const alertRoutes = require("./routes/alertRoutes");
-
 const app = express();
 
+// MOVE TO TOP
 app.use(cors());
 app.use(express.json());
+
+// GLOBAL LOGGER
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.url}`);
+  next();
+});
+
+const alertRoutes = require("./routes/alertRoutes");
+const staffRoutes = require("./routes/staffRoutes");
+const systemRoutes = require("./routes/systemRoutes");
 
 //  PUT YOUR MONGODB URL HERE
 const MONGO_URI =
@@ -23,7 +32,9 @@ mongoose.connect(MONGO_URI)
   .catch(err => console.log(err));
 
 app.use("/api", alertRoutes);
+app.use("/api", staffRoutes);
+app.use("/api", systemRoutes);
 
-app.listen(5000, () => {
-  console.log("Server running on port 5000");
+app.listen(5001, () => {
+  console.log("Server running on port 5001");
 });
