@@ -5,12 +5,12 @@ import { SystemType } from '../types';
 import {
   AlertTriangle, ArrowLeft, ArrowRight, CheckCircle, Building2,
   Mail, Phone, Eye, EyeOff, RefreshCw, Sparkles, Brain,
-  Shield, Zap, ChevronRight, Loader2
+  Shield, Zap, ChevronRight, Loader2, Lock
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { generateZones } from '../../services/api';
 
-type Step = 1 | 2 | 3 | 4;
+type Step = 1 | 2 | 3 | 4 | 5;
 
 interface FormData {
   adminName: string;
@@ -82,11 +82,14 @@ export function CreateSystem() {
   const [creating, setCreating] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
   const [detectedZones, setDetectedZones] = useState<string[]>([]);
+  const [createdAccessCode, setCreatedAccessCode] = useState<string>('');
   const [form, setForm] = useState<FormData>({
     adminName: '', adminEmail: '', adminPhone: '', password: '', confirmPassword: '',
     otp: '', systemType: '', projectDescription: '', systemName: '', primaryLocation: '',
     customAccessCode: '',
   });
+
+  const selectedType = SYSTEM_TYPES.find(t => t.type === form.systemType);
 
   const update = (key: keyof FormData, value: string) => setForm(p => ({ ...p, [key]: value }));
 
@@ -182,8 +185,9 @@ export function CreateSystem() {
         customAccessCode: form.customAccessCode
       }, form.password);
       if (result.success) {
-        toast.success('System created successfully!', { description: `Your access code is: ${result.accessCode || form.customAccessCode}` });
-        setTimeout(() => navigate('/dashboard'), 1500);
+        toast.success('System created successfully!');
+        setCreatedAccessCode(result.accessCode || form.customAccessCode);
+        setStep(5);
       }
     } catch (e: any) {
       toast.error(e.message || 'Failed to create system');
@@ -192,7 +196,6 @@ export function CreateSystem() {
     }
   };
 
-  const selectedType = SYSTEM_TYPES.find(t => t.type === form.systemType);
 
   const steps = [
     { n: 1, label: 'Account' },
@@ -517,6 +520,41 @@ export function CreateSystem() {
               <button onClick={handleCreate} disabled={creating || !form.systemName} className="w-full py-4 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 disabled:opacity-40 rounded-xl font-black text-white flex items-center justify-center gap-2 shadow-xl shadow-red-600/30 text-lg transition-all">
                 {creating ? <><Loader2 className="w-5 h-5 animate-spin" /> Creating System...</> : <><Zap className="w-5 h-5" /> Launch SERS System</>}
               </button>
+            </div>
+          )}
+
+          {/* STEP 5: Success & Access Code */}
+          {step === 5 && (
+            <div className="space-y-6 text-center">
+              <div className="w-20 h-20 bg-green-500/20 border-2 border-green-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                <CheckCircle className="w-10 h-10 text-green-400" />
+              </div>
+              <h2 className="text-4xl font-black text-white mb-2">System Live!</h2>
+              <p className="text-gray-400 text-sm max-w-sm mx-auto mb-8">
+                Your Smart Emergency Response System has been successfully created and is now active.
+              </p>
+
+              <div className="p-8 bg-[#0f0f17] border border-red-500/30 rounded-2xl relative overflow-hidden group">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-600 to-red-400"></div>
+                <p className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center justify-center gap-2">
+                  <Shield className="w-4 h-4 text-red-500" /> Your Access Code
+                </p>
+                <div className="text-5xl font-black text-white tracking-widest font-mono">
+                  {createdAccessCode}
+                </div>
+                <p className="text-xs text-red-400 mt-4 opacity-80">
+                  ⚠️ Save this code! You and your staff need it to enter the system.
+                </p>
+              </div>
+
+              <div className="pt-6">
+                <button 
+                  onClick={() => navigate('/dashboard')} 
+                  className="w-full py-4 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 rounded-xl font-black text-white flex items-center justify-center gap-2 shadow-xl shadow-red-600/30 text-lg transition-all hover:scale-[1.02]"
+                >
+                  Enter Dashboard <ArrowRight className="w-5 h-5" />
+                </button>
+              </div>
             </div>
           )}
         </div>

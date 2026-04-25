@@ -53,8 +53,7 @@ export function EmergencyReport() {
     setIsSubmitting(true);
 
     try {
-      // Save to MongoDB via API (so it shows on dashboard)
-      const result = await createAlert({
+      const emergencyPayload = {
         systemId: localStorage.getItem('sers_system_id') || 'default',
         type: emergencyType,
         level: emergencyLevel,
@@ -67,12 +66,28 @@ export function EmergencyReport() {
         userRole: user?.role || 'guest',
         locationId: user?.locationId || '',
         timestamp: new Date().toISOString()
-      });
+      };
 
-      setSubmittedAlert(result);
-      toast.success('Emergency analyzed by AI. Help is on the way.');
+      // 1. Always save to Local Memory first (Ensures zero data loss)
+      reportEmergency(emergencyPayload as any);
+
+      // 2. Attempt to save to Cloud
+      try {
+        const result = await createAlert(emergencyPayload);
+        setSubmittedAlert(result);
+        toast.success('Emergency analyzed by AI. Help is on the way.');
+      } catch (cloudError) {
+        console.warn("Cloud sync failed, but data is safe in local memory.");
+        // Fallback: Show a local success message even if cloud fails
+        setSubmittedAlert({
+          ...emergencyPayload,
+          aiAdvice: "OFFLINE MODE: Help is on the way. Your report is saved locally and will sync once internet returns."
+        });
+        toast.warning('Offline: Report saved locally. It will sync when online.');
+      }
     } catch (error) {
-      toast.error('Failed to submit emergency report');
+      toast.error('Critical error saving report');
+    } finally {
       setIsSubmitting(false);
     }
   };

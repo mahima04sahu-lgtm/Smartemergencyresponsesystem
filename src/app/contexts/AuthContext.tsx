@@ -222,7 +222,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       return false;
     } catch (error) {
-      console.error('Enter system error:', error);
+      console.warn('Backend entry failed, trying offline fallback:', error);
+      
+      // OFFLINE FALLBACK: Check if this user has successfully entered this system before
+      const cachedSystem = JSON.parse(localStorage.getItem('sers_system_config') || 'null');
+      const cachedUser = JSON.parse(localStorage.getItem('sers_current_user') || 'null');
+      const staffCache = JSON.parse(localStorage.getItem('sers_staff_cache') || '[]');
+
+      if (cachedSystem && (cachedSystem.accessCode === accessCode || cachedSystem.id === accessCode)) {
+        // System code matches, now check user email
+        // 1. Check if it's the last logged in user
+        if (cachedUser && cachedUser.email === email) {
+          setUser(cachedUser);
+          setSystemConfig(cachedSystem);
+          return true;
+        }
+        
+        // 2. Check if it's ANY staff in the cached list
+        const foundInCache = staffCache.find((s: any) => s.email === email);
+        if (foundInCache) {
+          setUser(foundInCache);
+          setSystemConfig(cachedSystem);
+          return true;
+        }
+
+        // 3. Guest fallback: If code matches, let any new email in as guest (offline)
+        const guestUser: User = {
+          id: `USR_GUEST_${Date.now()}`,
+          email,
+          name: email.split('@')[0],
+          role: 'guest',
+          locationId: cachedSystem.id || cachedSystem._id,
+        };
+        setUser(guestUser);
+        setSystemConfig(cachedSystem);
+        return true;
+      }
+      
       return false;
     }
   };

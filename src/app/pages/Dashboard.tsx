@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { getAlerts, updateAlertStatus, getAISuggestions } from '../../services/api';
+import { getAlerts, updateAlertStatus, getAISuggestions, getAllStaff, createAlert } from '../../services/api';
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useEmergency } from '../contexts/EmergencyContext';
@@ -12,7 +12,7 @@ import {
   AlertTriangle, Clock, CheckCircle, Users, TrendingUp,
   QrCode, X, Download, ChevronRight, Sparkles, Brain,
   Shield, Zap, Bell, BarChart3, Building2, ChevronLeft,
-  Settings, UserPlus, RefreshCw, Phone
+  Settings, UserPlus, RefreshCw, Phone, Trash2
 } from 'lucide-react';
 import { MOCK_LOCATIONS } from '../utils/mockData';
 import { QRCodeSVG } from 'qrcode.react';
@@ -92,8 +92,10 @@ export function Dashboard() {
   const { user, logout, systemConfig } = useAuth();
   const { emergencies, getActiveEmergencies, updateEmergencyStatus, resolveEmergency } = useEmergency();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const systemId = localStorage.getItem('sers_system_id') || '';
+  const isStaff = user?.role?.toLowerCase() === 'staff' || user?.role?.toLowerCase() === 'admin';
 
   const { data: cloudEmergencies } = useQuery({
     queryKey: ['alerts', systemId],
@@ -108,16 +110,106 @@ export function Dashboard() {
     enabled: !!systemId && user?.role !== 'guest'
   });
 
-  const queryClient = useQueryClient();
+  // ─── OFFLINE+ONLINE SYNC LOGIC ───
+  // Combine cloud data with any "unsynced" local data
+  // ─── OFFLINE+ONLINE SYNC LOGIC ───
+  const localEmergencies = emergencies || [];
+  const cachedCloudData = queryClient.getQueryData(['alerts', systemId]) as any[];
+  const cloudList = (cloudEmergencies as any[]) || cachedCloudData || [];
+  
+  // Deduplicate and Merge: Prefer local status if it has been updated
+  const combinedEmergencies = [
+    ...cloudList.map(cloud => {
+      // Find the matching local alert
+      const localUpdate = localEmergencies.find(l => 
+        (l.timestamp === cloud.timestamp || l.reportedAt === cloud.reportedAt) && 
+        l.location === cloud.location
+      );
+      // If the local alert exists, it might have a newer status from offline actions
+      return localUpdate ? { ...cloud, ...localUpdate, _id: cloud._id } : cloud;
+    }),
+    ...localEmergencies.filter(local => 
+      !cloudList.some(cloud => 
+        (cloud.timestamp === local.timestamp || cloud.reportedAt === local.reportedAt) && 
+        cloud.location === local.location
+      )
+    )
+  ];
+
+  // ─── STAFF MEMORY (For Offline Assignment) ───
+  const { data: staffList } = useQuery({
+    queryKey: ['staff', systemId],
+    queryFn: getAllStaff,
+    enabled: !!systemId && isStaff,
+    staleTime: 1000 * 60 * 30, // Consider staff data fresh for 30 mins
+  });
+
+
+  // 🧠 PERSIST STAFF: Save to localStorage so AuthContext can use it offline
+  useEffect(() => {
+    if (staffList && staffList.length > 0) {
+      localStorage.setItem('sers_staff_cache', JSON.stringify(staffList));
+    }
+  }, [staffList]);
 
   const statusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
       updateAlertStatus(id, status),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['alerts', systemId] }),
+    // 🚀 OPTIMISTIC UPDATE: Update UI instantly before server responds
+    onMutate: async (newStatus) => {
+      await queryClient.cancelQueries({ queryKey: ['alerts', systemId] });
+      const previousAlerts = queryClient.getQueryData(['alerts', systemId]);
+      queryClient.setQueryData(['alerts', systemId], (old: any) => {
+        return old?.map((a: any) => {
+          const alertId = a._id || a.id;
+          return alertId === newStatus.id ? { ...a, status: newStatus.status } : a;
+        });
+      });
+      return { previousAlerts };
+    },
+    onError: (err, newStatus, context) => {
+      // 🧠 OFFLINE PERSISTENCE: We keep the local update.
+      toast.warning("Cloud sync pending. Action saved locally.");
+    },
   });
 
-  // This combines your local context with the real MongoDB data
-  const combinedEmergencies = (cloudEmergencies as any[]) || [];
+  // 🚀 AUTO-SYNC ENGINE: Upload offline alerts AND status changes when online
+  const syncingIds = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const syncOfflineAlerts = async () => {
+      if (navigator.onLine && combinedEmergencies.length > 0) {
+        for (const emergency of combinedEmergencies) {
+          const id = emergency._id || emergency.id;
+          if (syncingIds.current.has(id)) continue;
+
+          // 1. Sync New Alerts
+          const isInCloud = cloudList.some(c => (c._id || c.id === emergency._id) && (c.timestamp === emergency.timestamp || c.location === emergency.location));
+          if (!isInCloud && !emergency._id) {
+            syncingIds.current.add(id);
+            try {
+              await createAlert({ ...emergency, systemId: systemId || 'default' } as any);
+              queryClient.invalidateQueries({ queryKey: ['alerts', systemId] });
+            } catch (e) { syncingIds.current.delete(id); }
+            continue;
+          }
+
+          // 2. Sync Status Changes (If cloud version has different status)
+          const cloudVersion = cloudList.find(c => c._id === emergency._id);
+          if (cloudVersion && cloudVersion.status !== emergency.status) {
+             syncingIds.current.add(id);
+             try {
+               await updateAlertStatus(emergency._id, emergency.status);
+               queryClient.invalidateQueries({ queryKey: ['alerts', systemId] });
+             } catch (e) { syncingIds.current.delete(id); }
+          }
+        }
+      }
+    };
+    const interval = setInterval(syncOfflineAlerts, 10000);
+    return () => clearInterval(interval);
+  }, [combinedEmergencies, cloudList, navigator.onLine]);
+
   const [activeTab, setActiveTab] = useState('active');
   const [refreshKey, setRefreshKey] = useState(0);
   const [showQR, setShowQR] = useState(false);
@@ -133,7 +225,6 @@ export function Dashboard() {
   const userLocation = MOCK_LOCATIONS.find(loc => loc.id === user?.locationId);
   const locationId = user?.locationId || 'LOC001';
 
-  const isStaff = user?.role?.toLowerCase() === 'staff' || user?.role?.toLowerCase() === 'admin';
 
   // Filter for Active Emergencies
   const activeEmergencies = combinedEmergencies.filter(e =>
@@ -158,6 +249,30 @@ export function Dashboard() {
 
 
   const qrUrl = `${window.location.origin}/complaint/${systemId}`;
+
+  const handleBulkResolve = async () => {
+    if (!window.confirm(`Are you sure you want to resolve all ${activeEmergencies.length} active alerts? This cannot be undone.`)) return;
+    
+    const resolvePromise = (async () => {
+      for (const e of activeEmergencies) {
+        const id = e._id || e.id;
+        try {
+          await updateAlertStatus(id, 'resolved');
+          // Also update local context
+          resolveEmergency(id);
+        } catch (err) {
+          console.warn("Failed to resolve:", id);
+        }
+      }
+      queryClient.invalidateQueries({ queryKey: ['alerts', systemId] });
+    })();
+
+    toast.promise(resolvePromise, {
+      loading: 'Sweeping system clean...',
+      success: 'Dashboard cleared successfully!',
+      error: 'Some alerts could not be resolved.',
+    });
+  };
 
   const stats = [
     { title: 'Active', value: activeEmergencies.length, icon: AlertTriangle, color: 'text-red-500', bg: 'bg-red-500/10 border-red-500/20' },
@@ -214,6 +329,18 @@ export function Dashboard() {
                 <QrCode className="w-4 h-4 text-purple-600" />
                 <span className="hidden sm:block">QR Code</span>
               </button>
+
+              {/* Bulk Resolve (ONLY SHOWS IF MESSY) */}
+              {isStaff && activeEmergencies.length > 5 && (
+                <button
+                  onClick={handleBulkResolve}
+                  className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-100 rounded-xl text-sm font-bold text-red-600 hover:bg-red-100 transition-all shadow-sm"
+                  title="Clear all active alerts"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span className="hidden sm:block">Clear All ({activeEmergencies.length})</span>
+                </button>
+              )}
               <SOSButton />
             </div>
           </div>
@@ -308,11 +435,17 @@ export function Dashboard() {
                       <p className="text-sm text-gray-400">All clear — system is monitoring</p>
                     </div>
                   ) : (
-                    activeEmergencies.sort((a, b) => b.level - a.level).map(e => (
+                    activeEmergencies.sort((a, b) => (b.level as any) - (a.level as any)).map(e => (
                       <EmergencyCard key={e._id || e.id} emergency={e}
                         showActions={isStaff}
-                        onUpdateStatus={status => statusMutation.mutate({ id: e._id || e.id, status })}
-                        onResolve={() => statusMutation.mutate({ id: e._id || e.id, status: 'resolved' })}
+                        onUpdateStatus={status => {
+                          updateEmergencyStatus(e.id || (e as any)._id, status as any);
+                          statusMutation.mutate({ id: e._id || e.id, status });
+                        }}
+                        onResolve={() => {
+                          resolveEmergency(e.id || (e as any)._id);
+                          statusMutation.mutate({ id: e._id || e.id, status: 'resolved' });
+                        }}
                       />
                     ))
                   )}
@@ -322,8 +455,14 @@ export function Dashboard() {
                   {allEmergencies.sort((a, b) => new Date(b.reportedAt).getTime() - new Date(a.reportedAt).getTime()).map(e => (
                     <EmergencyCard key={e._id || e.id} emergency={e}
                       showActions={isStaff}
-                      onUpdateStatus={status => statusMutation.mutate({ id: e._id || e.id, status })}
-                      onResolve={() => statusMutation.mutate({ id: e._id || e.id, status: 'resolved' })}
+                      onUpdateStatus={status => {
+                        updateEmergencyStatus(e.id || (e as any)._id, status as any);
+                        statusMutation.mutate({ id: e._id || e.id, status });
+                      }}
+                      onResolve={() => {
+                        resolveEmergency(e.id || (e as any)._id);
+                        statusMutation.mutate({ id: e._id || e.id, status: 'resolved' });
+                      }}
                     />
                   ))}
                   {allEmergencies.length === 0 && (
@@ -341,8 +480,14 @@ export function Dashboard() {
                     activeEmergencies.filter(e => e.level === 3).map(e => (
                       <EmergencyCard key={e._id || e.id} emergency={e}
                         showActions={isStaff}
-                        onUpdateStatus={status => statusMutation.mutate({ id: e._id || e.id, status })}
-                        onResolve={() => statusMutation.mutate({ id: e._id || e.id, status: 'resolved' })}
+                        onUpdateStatus={status => {
+                          updateEmergencyStatus(e.id || (e as any)._id, status as any);
+                          statusMutation.mutate({ id: e._id || e.id, status });
+                        }}
+                        onResolve={() => {
+                          resolveEmergency(e.id || (e as any)._id);
+                          statusMutation.mutate({ id: e._id || e.id, status: 'resolved' });
+                        }}
                       />
                     ))
                   )}

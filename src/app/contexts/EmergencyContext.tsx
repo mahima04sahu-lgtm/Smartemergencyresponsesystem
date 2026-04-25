@@ -32,8 +32,12 @@ export function EmergencyProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('sers_emergencies', JSON.stringify(MOCK_EMERGENCIES));
     }
 
+    const staffCache = localStorage.getItem('sers_staff_cache');
     const storedUsers = localStorage.getItem('sers_users');
-    if (storedUsers) {
+    
+    if (staffCache) {
+      setUsers(JSON.parse(staffCache));
+    } else if (storedUsers) {
       setUsers(JSON.parse(storedUsers));
     } else {
       setUsers(MOCK_USERS);

@@ -1,4 +1,5 @@
 import { useAuth } from '../contexts/AuthContext';
+import { useEmergency } from '../contexts/EmergencyContext';
 import { useMutation } from '@tanstack/react-query';
 import { AlertTriangle } from 'lucide-react';
 import { useNavigate } from 'react-router';
@@ -29,21 +30,31 @@ export function SOSButton({ size = 'sm', className = '', level = 'HIGH' }: SOSBu
     retry: 5,
   });
 
+  const { reportEmergency } = useEmergency();
+
   const handleSOS = () => {
     const data = {
       type: "emergency",
-      level: level||"HIGH",
+      level: level || "HIGH",
       location: user?.locationId || "Main Building", 
       reportedBy: user?.name || "Guest",
       userRole: user?.role || "guest",
       description: "Immediate assistance required at " + (user?.locationId || "Main Building"), 
-      status:"active",        
+      status: "active",        
       timestamp: new Date().toISOString(),
     };
 
-    // 1. Trigger the sync in the background
+    // 1. Save to Local Memory (Instant & Offline-ready)
+    reportEmergency({
+      ...data,
+      reportedByName: user?.name || "Guest",
+      locationId: user?.locationId || "LOC001"
+    } as any);
+
+    // 2. Trigger Cloud Sync (Attempts to reach MongoDB)
     sosMutation.mutate(data as any);
-    // 2. Navigate INSTANTLY (Move this line here)
+    
+    // 3. Navigate instantly
     navigate('/emergency-report');
   };
 
