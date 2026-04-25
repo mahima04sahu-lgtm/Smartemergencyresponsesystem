@@ -8,7 +8,7 @@ import {
   Users, UserCheck, UserX, Clock, Plus, X, Mail, Phone,
   Shield, Activity, Search, Filter, ChevronDown, Loader2,
   Heart, Calendar, Droplet, Award, AlertCircle, Check,
-  Edit2, Trash2, Eye, UserPlus
+  Edit2, Trash2, Eye, EyeOff, UserPlus, Lock
 } from 'lucide-react';
 import { User, EmergencyType, AuthorizationLevel } from '../types';
 import { toast } from 'sonner';
@@ -29,6 +29,7 @@ interface StaffForm {
   certifications: string;
   emergencyContact: string;
   availability: 'available' | 'busy' | 'offline';
+  password?: string;
 }
 
 const EMPTY_FORM: StaffForm = {
@@ -36,6 +37,7 @@ const EMPTY_FORM: StaffForm = {
   authorizationLevel: 'respond', department: '', skills: [],
   age: '', bloodType: '', medicalConditions: '',
   certifications: '', emergencyContact: '', availability: 'available',
+  password: '',
 };
 
 const AUTH_LEVELS: { value: AuthorizationLevel; label: string; description: string; color: string }[] = [
@@ -73,28 +75,42 @@ function getAvailabilityBadge(availability?: string) {
 function getAuthColor(level?: AuthorizationLevel) {
   return AUTH_LEVELS.find(a => a.value === level)?.color || 'bg-gray-500/20 text-gray-400 border-gray-500/30';
 }
+import { addStaff, getAllStaff, deleteStaff } from '../../services/api';
 
 export function StaffManagement() {
-  const { user } = useAuth();
+  const { user, systemConfig } = useAuth();
   const [staff, setStaff] = useState<User[]>([]);
   const [showModal, setShowModal] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState<User | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<StaffForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterAuth, setFilterAuth] = useState<AuthorizationLevel | 'all'>('all');
   const [formStep, setFormStep] = useState<1 | 2>(1);
 
-  const locationId = user?.locationId || 'LOC001';
+  const systemId = localStorage.getItem('sers_system_id');
 
-  const loadStaff = () => {
-    const storedUsers: User[] = JSON.parse(localStorage.getItem('sers_users') || '[]');
-    const locationStaff = storedUsers.filter(u => u.role === 'staff' && u.locationId === locationId);
-    setStaff(locationStaff);
+  const loadStaff = async () => {
+    try {
+      setLoading(true);
+      const data = await getAllStaff();
+      // data might be an array or { staff: [] } depending on backend response
+      const staffList = Array.isArray(data) ? data : (data.staff || []);
+      setStaff(staffList);
+    } catch (error) {
+      console.error('Failed to load staff:', error);
+      toast.error('Failed to load staff from server');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  useEffect(() => { loadStaff(); }, [locationId]);
+  useEffect(() => { 
+    if (systemId) loadStaff(); 
+  }, [systemId]);
 
   const update = (key: keyof StaffForm, value: any) => setForm(p => ({ ...p, [key]: value }));
 
@@ -106,7 +122,10 @@ export function StaffManagement() {
   };
 
   const openAdd = () => {
-    setForm(EMPTY_FORM);
+    setForm({
+      ...EMPTY_FORM,
+      password: systemConfig?.settings?.defaultStaffPassword || ''
+    });
     setEditingId(null);
     setFormStep(1);
     setShowModal(true);
@@ -135,53 +154,47 @@ export function StaffManagement() {
 
   const handleSave = async () => {
     if (!form.name) { toast.error('Name is required'); return; }
-    if (form.accessMethod !== 'phone' && !form.email) { toast.error('Email is required for email/both access'); return; }
-    if (form.accessMethod !== 'email' && !form.phone) { toast.error('Phone is required for phone/both access'); return; }
+    if (form.accessMethod !== 'phone' && !form.email) { toast.error('Email is required'); return; }
+    if (!editingId && !form.password) { toast.error('Initial password is required'); return; }
 
     setSaving(true);
-    await new Promise(r => setTimeout(r, 800));
+    try {
+      const result = await addStaff({
+        ...form,
+        role: form.authorizationLevel === 'admin' ? 'admin' : 'staff',
+        id: editingId, // backend will handle update if id exists
+        systemId
+      });
 
-    const allUsers: User[] = JSON.parse(localStorage.getItem('sers_users') || '[]');
-
-    const newMember: User = {
-      id: editingId || `USR${Date.now()}`,
-      email: form.email || `${form.phone}@phone.sers`,
-      name: form.name,
-      role: 'staff',
-      locationId,
-      department: form.department,
-      availability: form.availability,
-      skills: form.skills,
-      phone: form.phone,
-      authorizationLevel: form.authorizationLevel,
-      age: form.age ? parseInt(form.age) : undefined,
-      bloodType: form.bloodType || undefined,
-      medicalConditions: form.medicalConditions || undefined,
-      certifications: form.certifications ? form.certifications.split(',').map(c => c.trim()).filter(Boolean) : [],
-      emergencyContact: form.emergencyContact || undefined,
-      accessMethod: form.accessMethod,
-    };
-
-    let updatedUsers: User[];
-    if (editingId) {
-      updatedUsers = allUsers.map(u => u.id === editingId ? newMember : u);
-    } else {
-      updatedUsers = [...allUsers, newMember];
+      if (result.success) {
+        toast.success(editingId ? 'Staff member updated!' : 'Staff member added successfully!');
+        setShowModal(false);
+        setForm(EMPTY_FORM); // Reset form
+        loadStaff();
+      } else {
+        throw new Error(result.error || 'Failed to save staff');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Error connecting to server');
+    } finally {
+      setSaving(false);
     }
-
-    localStorage.setItem('sers_users', JSON.stringify(updatedUsers));
-    setSaving(false);
-    setShowModal(false);
-    loadStaff();
-    toast.success(editingId ? 'Staff member updated!' : 'Staff member added successfully!');
   };
 
-  const handleDelete = (memberId: string) => {
-    const allUsers: User[] = JSON.parse(localStorage.getItem('sers_users') || '[]');
-    const updated = allUsers.filter(u => u.id !== memberId);
-    localStorage.setItem('sers_users', JSON.stringify(updated));
-    loadStaff();
-    toast.success('Staff member removed');
+  const handleDelete = async (memberId: string) => {
+    if (!window.confirm('Are you sure you want to remove this staff member?')) return;
+    
+    try {
+      const result = await deleteStaff(memberId);
+      if (result.success) {
+        toast.success('Staff member removed');
+        loadStaff();
+      } else {
+        toast.error('Failed to delete staff');
+      }
+    } catch (error) {
+      toast.error('Error connecting to server');
+    }
   };
 
   const filteredStaff = staff.filter(m => {
@@ -413,6 +426,21 @@ export function StaffManagement() {
                         <Phone className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
                         <input type="tel" placeholder="9876543210" value={form.phone} onChange={e => update('phone', e.target.value.replace(/\D/g, ''))}
                           className="w-full pl-9 pr-3 py-2.5 bg-white border border-gray-300 rounded-xl text-sm focus:outline-none focus:border-red-400" />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Password (Only for new staff or if editing) */}
+                  {!editingId && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Set Initial Password *</label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+                        <input type={showPassword ? 'text' : 'password'} placeholder="••••••••" value={form.password} onChange={e => update('password', e.target.value)}
+                          className="w-full pl-9 pr-10 py-2.5 bg-white border border-gray-300 rounded-xl text-sm focus:outline-none focus:border-red-400" />
+                        <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600">
+                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
                       </div>
                     </div>
                   )}

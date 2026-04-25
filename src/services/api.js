@@ -88,8 +88,28 @@ export const createSystem = async (data, adminPassword) => {
   return res.json();
 };
 
-export const enterSystem = async (code) => {
-  const res = await fetch(`${BASE}/system/enter/${code}`);
-  if (!res.ok) throw new Error("System not found");
+export const deleteStaff = async (id) => {
+  const res = await fetch(`${BASE}/staff/${id}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error("Failed to delete staff");
+  return res.json();
+};
+
+export const enterSystem = async (accessCode, email) => {
+  const res = await fetch(`${BASE}/system/enter`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ accessCode, email }),
+  });
+  if (!res.ok) throw new Error("System not found or error entering");
+  return res.json();
+};
+export const updateSystemSettings = async (id, settings) => {
+  const res = await fetch(`${BASE}/system/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(settings),
+  });
   return res.json();
 };

@@ -23,6 +23,7 @@ interface FormData {
   projectDescription: string;
   systemName: string;
   primaryLocation: string;
+  customAccessCode: string;
 }
 
 const SYSTEM_TYPES: { type: SystemType; label: string; emoji: string; description: string; suggestions: string }[] = [
@@ -84,6 +85,7 @@ export function CreateSystem() {
   const [form, setForm] = useState<FormData>({
     adminName: '', adminEmail: '', adminPhone: '', password: '', confirmPassword: '',
     otp: '', systemType: '', projectDescription: '', systemName: '', primaryLocation: '',
+    customAccessCode: '',
   });
 
   const update = (key: keyof FormData, value: string) => setForm(p => ({ ...p, [key]: value }));
@@ -177,13 +179,14 @@ export function CreateSystem() {
         primaryLocation: form.primaryLocation,
         staffCount: 0,
         zones: zones,
+        customAccessCode: form.customAccessCode
       }, form.password);
       if (result.success) {
-        toast.success('System created successfully!', { description: 'Redirecting to your dashboard...' });
+        toast.success('System created successfully!', { description: `Your access code is: ${result.accessCode || form.customAccessCode}` });
         setTimeout(() => navigate('/dashboard'), 1500);
       }
-    } catch (e) {
-      toast.error('Failed to create system');
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to create system');
     } finally {
       setCreating(false);
     }
@@ -467,7 +470,7 @@ export function CreateSystem() {
               </div>
 
               {/* Summary */}
-              <div className="space-y-3">
+              <div className="space-y-3 mb-6">
                 {[
                   { label: 'Admin', value: `${form.adminName} (${form.adminEmail})` },
                   { label: 'System Type', value: `${SYSTEM_TYPES.find(t => t.type === form.systemType)?.emoji} ${SYSTEM_TYPES.find(t => t.type === form.systemType)?.label}` },
@@ -478,6 +481,19 @@ export function CreateSystem() {
                     <span className="text-sm text-white font-medium">{item.value}</span>
                   </div>
                 ))}
+              </div>
+
+              {/* Custom access code */}
+              <div className="p-5 bg-white/5 border border-white/10 rounded-xl mb-6">
+                <label className="block text-sm text-gray-400 mb-2 flex items-center gap-2">
+                  <Lock className="w-4 h-4 text-red-400" /> Preferred Access Code (Optional)
+                </label>
+                <input
+                  type="text" placeholder="e.g. HOSPITAL-01 (or leave blank for random)"
+                  value={form.customAccessCode} onChange={e => update('customAccessCode', e.target.value.toUpperCase())}
+                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-red-500 transition-colors uppercase font-mono tracking-widest"
+                />
+                <p className="text-[10px] text-gray-500 mt-2 italic">This code will be given to visitors/guests so they can report emergencies on your campus.</p>
               </div>
 
               {/* AI Suggestions */}

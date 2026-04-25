@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, SystemConfig, SystemSettings } from '../types';
 import { MOCK_USERS } from '../utils/mockData';
-import { createSystem as apiCreateSystem, enterSystem as apiEnterSystem } from '../../services/api';
+import { createSystem as apiCreateSystem, enterSystem as apiEnterSystem, updateSystemSettings as apiUpdateSystemSettings, loginStaff } from '../../services/api';
 
 const DEFAULT_SETTINGS: SystemSettings = {
   autoAssignStaff: true,
@@ -33,8 +33,8 @@ interface AuthContextType {
   logout: () => void;
   register: (email: string, password: string, name: string, role: 'guest' | 'staff', locationId: string) => Promise<boolean>;
   createSystem: (config: Omit<SystemConfig, 'id' | 'createdAt'>, adminPassword: string) => Promise<{ success: boolean; systemId?: string }>;
-  enterSystem: (identifier: string) => Promise<boolean>;
-  updateSystemSettings: (settings: Partial<SystemSettings>) => void;
+  enterSystem: (accessCode: string, email: string) => Promise<boolean>;
+  updateSystemSettings: (settings: Partial<SystemSettings>) => Promise<void>;
   isAuthenticated: boolean;
 }
 
@@ -202,11 +202,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const enterSystem = async (identifier: string): Promise<boolean> => {
+  const enterSystem = async (accessCode: string, email: string): Promise<boolean> => {
     try {
-      // For now, use the same login logic if they enter an email
-      // In a real app, we would have a separate 'enterByCode' or similar
-      const result = await loginStaff(identifier, 'demo123'); // Fallback or prompt for pwd
+      const result = await apiEnterSystem(accessCode, email);
       
       if (result.success) {
         const userData = result.user;
@@ -224,26 +222,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       return false;
     } catch (error) {
-      // Fallback to local search for existing mock users
-      const allUsers = JSON.parse(localStorage.getItem('sers_users') || JSON.stringify(MOCK_USERS));
-      const foundUser = allUsers.find(u => u.email === identifier || u.phone === identifier);
-      if (foundUser) {
-        setUser(foundUser);
-        localStorage.setItem('sers_current_user', JSON.stringify(foundUser));
-        return true;
-      }
+      console.error('Enter system error:', error);
       return false;
     }
   };
 
-  const updateSystemSettings = (settings: Partial<SystemSettings>) => {
+  const updateSystemSettings = async (settings: Partial<SystemSettings>) => {
     if (!systemConfig) return;
-    const updated: SystemConfig = {
-      ...systemConfig,
-      settings: { ...(systemConfig.settings || DEFAULT_SETTINGS), ...settings },
-    };
-    setSystemConfig(updated);
-    localStorage.setItem('sers_system_config', JSON.stringify(updated));
+    try {
+      const updated: SystemConfig = {
+        ...systemConfig,
+        settings: { ...(systemConfig.settings || DEFAULT_SETTINGS), ...settings },
+      };
+      
+      // Save to Backend
+      const result = await apiUpdateSystemSettings(systemConfig._id, updated.settings);
+      
+      if (result.success) {
+        setSystemConfig(updated);
+        localStorage.setItem('sers_system_config', JSON.stringify(updated));
+      }
+    } catch (error) {
+      console.error('Failed to sync settings:', error);
+      toast.error('Settings saved locally but failed to sync to cloud');
+    }
   };
 
   return (

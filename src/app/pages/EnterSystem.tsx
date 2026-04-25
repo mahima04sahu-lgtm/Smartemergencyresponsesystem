@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../contexts/AuthContext';
-import { AlertTriangle, Mail, Phone, ArrowLeft, Loader2, Eye, EyeOff, Lock, ChevronRight } from 'lucide-react';
+import { AlertTriangle, Mail, Phone, ArrowLeft, Loader2, Eye, EyeOff, Lock, ChevronRight, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 
 type LoginMethod = 'email' | 'phone';
@@ -9,9 +9,9 @@ type LoginMethod = 'email' | 'phone';
 export function EnterSystem() {
   const navigate = useNavigate();
   const { login, loginByPhone, enterSystem } = useAuth();
-  const [method, setMethod] = useState<LoginMethod>('email');
+  const [method, setMethod] = useState<'code' | 'login'>('code');
+  const [accessCode, setAccessCode] = useState('');
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -22,33 +22,6 @@ export function EnterSystem() {
     { label: 'Guest', email: 'guest@example.com', role: 'guest', color: 'gray' },
   ];
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      let success = false;
-      if (method === 'email') {
-        if (!email) { toast.error('Enter your email address'); setLoading(false); return; }
-        success = await login(email, password);
-      } else {
-        if (!phone) { toast.error('Enter your phone number'); setLoading(false); return; }
-        success = await enterSystem(phone);
-        if (!success) {
-          // Try to find user by phone in the direct way
-          success = await loginByPhone(phone);
-        }
-      }
-      if (success) {
-        toast.success('Welcome back!');
-        navigate('/dashboard');
-      } else {
-        toast.error(method === 'email' ? 'Email not found. Check credentials or create a system.' : 'Phone number not registered in any system.');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleDemo = async (demoEmail: string) => {
     setLoading(true);
     try {
@@ -57,6 +30,41 @@ export function EnterSystem() {
         toast.success('Demo login successful!');
         navigate('/dashboard');
       }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    console.log(">>> [Browser] Attempting entry with:", { method, accessCode, email });
+    setLoading(true);
+    try {
+      let success = false;
+      if (method === 'code') {
+        if (!accessCode || !email) { 
+          toast.error('Enter both Access Code and Email'); 
+          setLoading(false); 
+          return; 
+        }
+        success = await enterSystem(accessCode, email);
+      } else {
+        if (!email || !password) { 
+          toast.error('Enter email and password'); 
+          setLoading(false); 
+          return; 
+        }
+        success = await login(email, password);
+      }
+
+      if (success) {
+        toast.success('Welcome back!');
+        navigate('/dashboard');
+      } else {
+        toast.error(method === 'code' ? 'Invalid access code or system error.' : 'Invalid credentials.');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Access failed');
     } finally {
       setLoading(false);
     }
@@ -90,41 +98,69 @@ export function EnterSystem() {
             <div className="w-16 h-16 bg-red-600/20 border border-red-600/30 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <Lock className="w-8 h-8 text-red-400" />
             </div>
-            <h1 className="text-3xl font-black text-white mb-2">Enter System</h1>
-            <p className="text-gray-500 text-sm">Access your SERS emergency response platform</p>
+            <h1 className="text-3xl font-black text-white mb-2">Access System</h1>
+            <p className="text-gray-500 text-sm">Join a system or login to manage</p>
           </div>
 
           {/* Method toggle */}
           <div className="flex gap-1 p-1 bg-white/5 rounded-xl mb-6 border border-white/10">
-            {(['email', 'phone'] as LoginMethod[]).map(m => (
-              <button
-                key={m}
-                onClick={() => setMethod(m)}
-                className={`flex-1 py-2.5 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-all ${
-                  method === m ? 'bg-red-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                {m === 'email' ? <><Mail className="w-4 h-4" /> Gmail / Email</> : <><Phone className="w-4 h-4" /> Phone Number</>}
-              </button>
-            ))}
+            <button
+              onClick={() => setMethod('code')}
+              className={`flex-1 py-2.5 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-all ${
+                method === 'code' ? 'bg-red-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              <Zap className="w-4 h-4" /> Access Code
+            </button>
+            <button
+              onClick={() => setMethod('login')}
+              className={`flex-1 py-2.5 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-all ${
+                method === 'login' ? 'bg-red-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              <Lock className="w-4 h-4" /> Admin Login
+            </button>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {method === 'email' ? (
+            {method === 'code' ? (
               <>
                 <div>
-                  <label className="block text-sm text-gray-400 mb-1.5">Gmail / Email Address</label>
+                  <label className="block text-sm text-gray-400 mb-1.5">System Access Code</label>
+                  <input
+                    type="text" placeholder="ABC-123"
+                    value={accessCode} onChange={e => setAccessCode(e.target.value.toUpperCase())}
+                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-red-500 transition-colors uppercase font-mono tracking-widest text-center text-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1.5">Your Email</label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-3.5 w-4 h-4 text-gray-500" />
                     <input
-                      type="email" placeholder="admin@gmail.com"
+                      type="email" placeholder="you@example.com"
+                      value={email} onChange={e => setEmail(e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-red-500 transition-colors"
+                    />
+                  </div>
+                  <p className="text-[10px] text-gray-600 mt-2">Entering as staff? Use your registered email. Others enter as guests.</p>
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1.5">Admin Email</label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-3.5 w-4 h-4 text-gray-500" />
+                    <input
+                      type="email" placeholder="admin@example.com"
                       value={email} onChange={e => setEmail(e.target.value)}
                       className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-red-500 transition-colors"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm text-gray-400 mb-1.5">Password</label>
+                  <label className="block text-sm text-gray-400 mb-1.5">Admin Password</label>
                   <div className="relative">
                     <input
                       type={showPassword ? 'text' : 'password'} placeholder="••••••••"
@@ -137,26 +173,10 @@ export function EnterSystem() {
                   </div>
                 </div>
               </>
-            ) : (
-              <div>
-                <label className="block text-sm text-gray-400 mb-1.5">Phone Number</label>
-                <div className="flex gap-2">
-                  <div className="flex items-center px-3 bg-white/5 border border-white/10 rounded-xl text-gray-400 text-sm whitespace-nowrap">+91</div>
-                  <div className="relative flex-1">
-                    <Phone className="absolute left-3 top-3.5 w-4 h-4 text-gray-500" />
-                    <input
-                      type="tel" placeholder="9876543210" maxLength={10}
-                      value={phone} onChange={e => setPhone(e.target.value.replace(/\D/g, ''))}
-                      className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-red-500 transition-colors"
-                    />
-                  </div>
-                </div>
-                <p className="text-xs text-gray-600 mt-2">Direct access — no password needed if your admin registered your phone</p>
-              </div>
             )}
 
             <button type="submit" disabled={loading} className="w-full py-3.5 bg-red-600 hover:bg-red-500 disabled:opacity-50 rounded-xl font-bold text-white flex items-center justify-center gap-2 transition-all shadow-lg shadow-red-600/20">
-              {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Accessing...</> : <>Enter System <ChevronRight className="w-4 h-4" /></>}
+              {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Verifying...</> : <>{method === 'code' ? 'Join System' : 'Manage System'} <ChevronRight className="w-4 h-4" /></>}
             </button>
           </form>
 

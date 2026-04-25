@@ -21,9 +21,9 @@ router.post("/staff", async (req, res) => {
     await staff.save();
     const result = staff.toObject();
     delete result.password; // Remove password from response
-    res.json(result);
+    res.json({ success: true, staff: result });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
@@ -66,7 +66,7 @@ router.delete("/staff/:id", async (req, res) => {
     await Staff.findByIdAndDelete(req.params.id);
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 

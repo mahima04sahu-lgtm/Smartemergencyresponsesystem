@@ -125,6 +125,7 @@ export interface SystemSettings {
   policeNumber: string;
   ambulanceNumber: string;
   fireNumber: string;
+  defaultStaffPassword?: string;
   customEmergencyNumbers: CustomEmergencyNumber[];
 }
 

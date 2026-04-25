@@ -254,6 +254,20 @@ export function Settings() {
                         ))}
                       </div>
                     </div>
+
+                    <div className="pt-4 border-t">
+                      <p className="font-medium text-gray-800 text-sm mb-2 flex items-center gap-2">
+                        <Lock className="w-4 h-4 text-red-600" /> Default Staff Password
+                      </p>
+                      <p className="text-xs text-gray-500 mb-3">New staff will use this password by default when you add them</p>
+                      <div className="relative max-w-sm">
+                        <input
+                          type="text" placeholder="e.g. Campus123"
+                          value={settings.defaultStaffPassword || ''} onChange={e => updateSetting('defaultStaffPassword', e.target.value)}
+                          className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl text-sm focus:outline-none focus:border-red-400"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
