@@ -30,16 +30,18 @@ export function EmergencyCard({
 }: EmergencyCardProps) {
 
   const getLevelColor = (level: any) => {
-    if (level === 3 || level === 'HIGH') return 'bg-red-500';
-    if (level === 2 || level === 'MEDIUM') return 'bg-amber-400';
-    if (level === 1 || level === 'LOW') return 'bg-sky-400';
-    return 'bg-slate-200';
+    const l = String(level).toUpperCase();
+    if (l === '3' || l === 'HIGH') return 'bg-red-600 text-white border-none shadow-sm';
+    if (l === '2' || l === 'MEDIUM') return 'bg-yellow-500 text-white border-none shadow-sm';
+    if (l === '1' || l === 'LOW') return 'bg-blue-500 text-white border-none shadow-sm';
+    return 'bg-slate-200 text-slate-700';
   };
 
   const getLevelText = (level: any) => {
-    if (level === 3 || level === 'HIGH') return 'Critical';
-    if (level === 2 || level === 'MEDIUM') return 'Moderate';
-    if (level === 1 || level === 'LOW') return 'Minor';
+    const l = String(level).toUpperCase();
+    if (l === '3' || l === 'HIGH') return 'Critical';
+    if (l === '2' || l === 'MEDIUM') return 'Moderate';
+    if (l === '1' || l === 'LOW') return 'Minor';
     return 'Unknown';
   };
 

@@ -10,7 +10,8 @@ import { Textarea } from '../components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { RadioGroup, RadioGroupItem } from '../components/ui/radio-group';
-import { AlertTriangle, MapPin, FileText, Shield } from 'lucide-react';
+import { AlertTriangle, MapPin, FileText, Shield, Brain, Zap, Users, CheckCircle } from 'lucide-react';
+import { Badge } from '../components/ui/badge';
 import { EmergencyType, EmergencyLevel } from '../types';
 import { MOCK_LOCATIONS } from '../utils/mockData';
 import { toast } from 'sonner';
@@ -26,6 +27,7 @@ export function EmergencyReport() {
   const [roomNumber, setRoomNumber] = useState('');
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submittedAlert, setSubmittedAlert] = useState<any>(null);
 
   const userLocation = MOCK_LOCATIONS.find(loc => loc.id === user?.locationId);
   // Read zones from the current system (saved on system create/enter), fallback to mock
@@ -52,13 +54,14 @@ export function EmergencyReport() {
 
     try {
       // Save to MongoDB via API (so it shows on dashboard)
-      await createAlert({
+      const result = await createAlert({
+        systemId: localStorage.getItem('sers_system_id') || 'default',
         type: emergencyType,
         level: emergencyLevel,
         status: 'active',
         location: location || user?.locationId || 'Unknown',
         roomNumber: roomNumber || undefined,
-        description,                          // ← This is the text the user typed
+        description,
         reportedBy: user?.name || 'Guest',
         reportedByName: user?.name || 'Guest',
         userRole: user?.role || 'guest',
@@ -66,12 +69,8 @@ export function EmergencyReport() {
         timestamp: new Date().toISOString()
       });
 
-      toast.success('Emergency reported! Help is on the way.');
-
-      // Navigate back to dashboard
-      setTimeout(() => {
-        navigate('/dashboard');
-      }, 1500);
+      setSubmittedAlert(result);
+      toast.success('Emergency analyzed by AI. Help is on the way.');
     } catch (error) {
       toast.error('Failed to submit emergency report');
       setIsSubmitting(false);
@@ -107,168 +106,254 @@ export function EmergencyReport() {
           </div>
         </div>
 
-        {/* Emergency Form */}
-        <form onSubmit={handleSubmit}>
-          <Card className="border-l-4 border-red-600">
-            <CardHeader>
-              <CardTitle>Emergency Details</CardTitle>
-              <CardDescription>
-                Provide accurate information to ensure quick response. Your report will be immediately processed.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Emergency Type */}
-              <div className="space-y-2">
-                <Label htmlFor="emergency-type">
-                  <FileText className="w-4 h-4 inline mr-2" />
-                  Emergency Type *
-                </Label>
-                <Select value={emergencyType} onValueChange={(value) => setEmergencyType(value as EmergencyType)}>
-                  <SelectTrigger id="emergency-type">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {emergencyTypes.map(type => (
-                      <SelectItem key={type.value} value={type.value}>
-                        <span className="flex items-center gap-2">
-                          <span>{type.icon}</span>
-                          <span>{type.label}</span>
+        {/* Emergency Form or AI Results */}
+        {submittedAlert ? (
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            {/* AI ADVICE CARD (THE WOW FACTOR) */}
+            <Card className="border-2 border-yellow-400 bg-gradient-to-br from-yellow-50 to-white shadow-xl overflow-hidden">
+              <div className="bg-yellow-400 px-4 py-2 flex items-center justify-between">
+                <span className="flex items-center gap-2 text-yellow-900 font-bold text-sm">
+                  <Brain className="w-4 h-4" /> AI INSTANT GUIDANCE
+                </span>
+                <Badge variant="outline" className="bg-white/50 border-yellow-600 text-yellow-900">GEMINI AI</Badge>
+              </div>
+              <CardContent className="pt-6 pb-8">
+                <div className="flex gap-4">
+                  <div className="w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center shrink-0 border border-yellow-200">
+                    <Zap className="w-6 h-6 text-yellow-500 fill-yellow-500" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black text-gray-900 mb-2">Immediate Instructions:</h3>
+                    <p className="text-lg text-gray-800 leading-relaxed font-medium italic">
+                      "{submittedAlert.aiAdvice || 'Staff have been notified. Please stay where you are and stay calm.'}"
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* SYSTEM RESPONSE STATUS */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Card className="border-blue-100 shadow-md">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-blue-600" /> System Response
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-500">Status</span>
+                      <Badge className="bg-blue-600">Dispatched</Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-500">Severity</span>
+                      <div className="flex items-center gap-2">
+                        {submittedAlert.level !== submittedAlert.originalLevel && (
+                          <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-bold">AI CORRECTED</span>
+                        )}
+                        <span className={`font-bold ${submittedAlert.level === '3' ? 'text-red-600' : 'text-orange-500'}`}>
+                          Level {submittedAlert.level}
                         </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
-              {/* Emergency Level */}
-              <div className="space-y-3">
-                <Label>
-                  <Shield className="w-4 h-4 inline mr-2" />
-                  Emergency Level *
-                </Label>
-                <RadioGroup
-                  value={emergencyLevel.toString()}
-                  onValueChange={(value) => setEmergencyLevel(parseInt(value) as EmergencyLevel)}
-                >
-                  <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50">
-                    <RadioGroupItem value="1" id="level-1" />
-                    <Label htmlFor="level-1" className="flex-1 cursor-pointer">
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                        <span className="font-medium">Level 1 - Minor</span>
-                      </div>
-                      <p className="text-sm text-gray-600 ml-5">{getLevelDescription(1)}</p>
-                    </Label>
+              <Card className="border-green-100 shadow-md">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Users className="w-4 h-4 text-green-600" /> Assigned Responders
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {submittedAlert.assignedStaffNames && submittedAlert.assignedStaffNames.length > 0 ? (
+                      submittedAlert.assignedStaffNames.map((name: string) => (
+                        <div key={name} className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                          <CheckCircle className="w-3 h-3 text-green-500" /> {name}
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-xs text-gray-400">Nearest staff being paged...</p>
+                    )}
+                    <p className="text-[10px] text-gray-400 mt-2 italic">Matched by AI Skills: {submittedAlert.requiredSkills?.join(', ')}</p>
                   </div>
-                  <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50">
-                    <RadioGroupItem value="2" id="level-2" />
-                    <Label htmlFor="level-2" className="flex-1 cursor-pointer">
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
-                        <span className="font-medium">Level 2 - Moderate</span>
-                      </div>
-                      <p className="text-sm text-gray-600 ml-5">{getLevelDescription(2)}</p>
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50 border-red-300">
-                    <RadioGroupItem value="3" id="level-3" />
-                    <Label htmlFor="level-3" className="flex-1 cursor-pointer">
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 bg-red-600 rounded-full animate-pulse"></div>
-                        <span className="font-medium text-red-600">Level 3 - Critical</span>
-                      </div>
-                      <p className="text-sm text-gray-600 ml-5">{getLevelDescription(3)}</p>
-                    </Label>
-                  </div>
-                </RadioGroup>
-              </div>
+                </CardContent>
+              </Card>
+            </div>
 
-              {/* Location */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Button 
+              onClick={() => navigate('/dashboard')} 
+              className="w-full h-12 text-lg font-bold bg-gray-900 hover:bg-black text-white rounded-2xl shadow-lg transition-all"
+            >
+              Finish & Return to Dashboard
+            </Button>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit}>
+            <Card className="border-l-4 border-red-600">
+              <CardHeader>
+                <CardTitle>Emergency Details</CardTitle>
+                <CardDescription>
+                  Provide accurate information to ensure quick response. Your report will be immediately processed.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Emergency Type */}
                 <div className="space-y-2">
-                  <Label htmlFor="location">
-                    <MapPin className="w-4 h-4 inline mr-2" />
-                    Zone/Location *
+                  <Label htmlFor="emergency-type">
+                    <FileText className="w-4 h-4 inline mr-2" />
+                    Emergency Type *
                   </Label>
-                  <Select value={location} onValueChange={setLocation}>
-                    <SelectTrigger id="location">
-                      <SelectValue placeholder="Select location" />
+                  <Select value={emergencyType} onValueChange={(value) => setEmergencyType(value as EmergencyType)}>
+                    <SelectTrigger id="emergency-type">
+                      <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {(systemZones.length > 0 ? systemZones : (userLocation?.zones || [])).map(zone => (
-                        <SelectItem key={zone} value={zone}>
-                          {zone}
+                      {emergencyTypes.map(type => (
+                        <SelectItem key={type.value} value={type.value}>
+                          <span className="flex items-center gap-2">
+                            <span>{type.icon}</span>
+                            <span>{type.label}</span>
+                          </span>
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="room-number">Room/Unit Number (Optional)</Label>
-                  <Input
-                    id="room-number"
-                    type="text"
-                    placeholder="e.g., 812, A-23"
-                    value={roomNumber}
-                    onChange={(e) => setRoomNumber(e.target.value)}
-                  />
-                </div>
-              </div>
 
-              {/* Description */}
-              <div className="space-y-2">
-                <Label htmlFor="description">Description *</Label>
-                <Textarea
-                  id="description"
-                  placeholder="Describe the emergency situation in detail. Include any relevant information that can help responders."
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={4}
-                  required
-                />
-                <p className="text-sm text-gray-500">
-                  Provide as much detail as possible to help emergency responders assess and handle the situation effectively.
-                </p>
-              </div>
-
-              {/* Warning for Critical */}
-              {emergencyLevel === 3 && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                  <div className="flex gap-3">
-                    <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-medium text-red-900">Critical Emergency Alert</p>
-                      <p className="text-sm text-red-700 mt-1">
-                        This will trigger an immediate response from all available staff and management. 
-                        Emergency services will be simulated and all personnel will be notified.
-                      </p>
+                {/* Emergency Level */}
+                <div className="space-y-3">
+                  <Label>
+                    <Shield className="w-4 h-4 inline mr-2" />
+                    Emergency Level *
+                  </Label>
+                  <RadioGroup
+                    value={emergencyLevel.toString()}
+                    onValueChange={(value) => setEmergencyLevel(parseInt(value) as EmergencyLevel)}
+                  >
+                    <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50">
+                      <RadioGroupItem value="1" id="level-1" />
+                      <Label htmlFor="level-1" className="flex-1 cursor-pointer">
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                          <span className="font-medium">Level 1 - Minor</span>
+                        </div>
+                        <p className="text-sm text-gray-600 ml-5">{getLevelDescription(1)}</p>
+                      </Label>
                     </div>
+                    <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50">
+                      <RadioGroupItem value="2" id="level-2" />
+                      <Label htmlFor="level-2" className="flex-1 cursor-pointer">
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
+                          <span className="font-medium">Level 2 - Moderate</span>
+                        </div>
+                        <p className="text-sm text-gray-600 ml-5">{getLevelDescription(2)}</p>
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50 border-red-300">
+                      <RadioGroupItem value="3" id="level-3" />
+                      <Label htmlFor="level-3" className="flex-1 cursor-pointer">
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 bg-red-600 rounded-full animate-pulse"></div>
+                          <span className="font-medium text-red-600">Level 3 - Critical</span>
+                        </div>
+                        <p className="text-sm text-gray-600 ml-5">{getLevelDescription(3)}</p>
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+
+                {/* Location */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="location">
+                      <MapPin className="w-4 h-4 inline mr-2" />
+                      Zone/Location *
+                    </Label>
+                    <Select value={location} onValueChange={setLocation}>
+                      <SelectTrigger id="location">
+                        <SelectValue placeholder="Select location" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(systemZones.length > 0 ? systemZones : (userLocation?.zones || [])).map(zone => (
+                          <SelectItem key={zone} value={zone}>
+                            {zone}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="room-number">Room/Unit Number (Optional)</Label>
+                    <Input
+                      id="room-number"
+                      type="text"
+                      placeholder="e.g., 812, A-23"
+                      value={roomNumber}
+                      onChange={(e) => setRoomNumber(e.target.value)}
+                    />
                   </div>
                 </div>
-              )}
 
-              {/* Action Buttons */}
-              <div className="flex gap-3 pt-4 border-t">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => navigate('/dashboard')}
-                  disabled={isSubmitting}
-                  className="flex-1"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className={`flex-1 ${emergencyLevel === 3 ? 'bg-red-600 hover:bg-red-700' : ''}`}
-                >
-                  {isSubmitting ? 'Submitting...' : 'Submit Emergency Report'}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </form>
+                {/* Description */}
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description *</Label>
+                  <Textarea
+                    id="description"
+                    placeholder="Describe the emergency situation in detail. Include any relevant information that can help responders."
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    rows={4}
+                    required
+                  />
+                  <p className="text-sm text-gray-500">
+                    Provide as much detail as possible to help emergency responders assess and handle the situation effectively.
+                  </p>
+                </div>
+
+                {/* Warning for Critical */}
+                {emergencyLevel === 3 && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <div className="flex gap-3">
+                      <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-medium text-red-900">Critical Emergency Alert</p>
+                        <p className="text-sm text-red-700 mt-1">
+                          This will trigger an immediate response from all available staff and management. 
+                          Emergency services will be simulated and all personnel will be notified.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex gap-3 pt-4 border-t">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => navigate('/dashboard')}
+                    disabled={isSubmitting}
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className={`flex-1 ${emergencyLevel === 3 ? 'bg-red-600 hover:bg-red-700' : ''}`}
+                  >
+                    {isSubmitting ? 'AI Analyzing Situation...' : 'Submit Emergency Report'}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </form>
+        )}
 
         {/* Help Text */}
         <Card className="mt-6 bg-blue-50 border-blue-200">

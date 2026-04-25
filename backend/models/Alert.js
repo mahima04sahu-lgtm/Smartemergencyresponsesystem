@@ -11,6 +11,10 @@ const alertSchema = new mongoose.Schema({
   reportedByName: String,
   userRole: String,
   locationId: String,
+  originalLevel: String,                            // What the user initially selected
+  aiLevel: String,                                  // What AI suggests the level should be
+  aiAdvice: String,                                 // Immediate safety instructions from AI
+  requiredSkills: { type: [String], default: [] },  // Skills AI thinks are needed
   assignedStaff: { type: [String], default: [] },      // Staff IDs
   assignedStaffNames: { type: [String], default: [] }, // Staff names (for display)
 

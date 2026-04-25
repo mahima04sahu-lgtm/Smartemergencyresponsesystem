@@ -44,6 +44,14 @@ export const generateZones = async (type, description) => {
   return res.json();
 };
 
+export const getAISuggestions = async () => {
+  const systemId = localStorage.getItem("sers_system_id");
+  if (!systemId) return [];
+  const res = await fetch(`${BASE}/system/${systemId}/ai-suggestions`);
+  if (!res.ok) throw new Error("Failed to fetch AI suggestions");
+  return res.json();
+};
+
 // ─── STAFF ────────────────────────────────────────────────────────────────
 
 export const getAllStaff = async () => {

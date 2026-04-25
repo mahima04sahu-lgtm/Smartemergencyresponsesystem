@@ -2,6 +2,8 @@ const express = require("express");
 const router = express.Router();
 const System = require("../models/System");
 const Staff = require("../models/Staff");
+const Alert = require("../models/Alert");
+const geminiService = require("../services/geminiService");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 // Initialize Gemini
@@ -148,6 +150,23 @@ router.patch("/system/:id", async (req, res) => {
     res.json({ success: true, system });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// GET LIVE AI SUGGESTIONS
+router.get("/system/:id/ai-suggestions", async (req, res) => {
+  try {
+    const system = await System.findById(req.params.id);
+    if (!system) return res.status(404).json({ error: "System not found" });
+
+    const alerts = await Alert.find({ systemId: req.params.id });
+    const staff = await Staff.find({ systemId: req.params.id });
+
+    const suggestions = await geminiService.getSystemSuggestions(system.type, alerts, staff);
+    res.json(suggestions);
+  } catch (err) {
+    console.error("AI Suggestions Route Error:", err);
+    res.status(500).json({ error: "Failed to fetch AI suggestions" });
   }
 });
 
