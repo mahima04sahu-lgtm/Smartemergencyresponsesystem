@@ -1,4 +1,4 @@
-const BASE = "http://localhost:5001/api"; // Moved to 5001 to avoid ghost server conflict
+const BASE = "https://sers-7qxj.onrender.com/api"; // Moved to 5001 to avoid ghost server conflict
 
 // ─── ALERTS ────────────────────────────────────────────────────────────────
 
