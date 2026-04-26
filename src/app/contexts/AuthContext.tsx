@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, SystemConfig, SystemSettings } from '../types';
 import { MOCK_USERS } from '../utils/mockData';
-import { createSystem as apiCreateSystem, enterSystem as apiEnterSystem, updateSystemSettings as apiUpdateSystemSettings, loginStaff } from '../../services/api';
+import { createSystem as apiCreateSystem, enterSystem as apiEnterSystem, updateSystemSettings as apiUpdateSystemSettings, loginStaff, getAllStaff } from '../../services/api';
 
 const DEFAULT_SETTINGS: SystemSettings = {
   autoAssignStaff: true,
@@ -60,6 +60,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('sers_users', JSON.stringify(MOCK_USERS));
     }
   }, []);
+
+  // 🧠 BACKGROUND SYNC: Always keep the staff cache fresh for offline login
+  useEffect(() => {
+    if (systemConfig) {
+      getAllStaff()
+        .then(data => {
+          const staffList = Array.isArray(data) ? data : (data.staff || []);
+          if (staffList.length > 0) {
+            localStorage.setItem('sers_staff_cache', JSON.stringify(staffList));
+          }
+        })
+        .catch(err => console.warn('Background staff sync failed:', err));
+    }
+  }, [systemConfig]);
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
@@ -194,8 +208,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(adminUser);
       localStorage.setItem('sers_current_user', JSON.stringify(adminUser));
 
-      // 🧹 Wipe any old local emergencies so the new dashboard is clean
+      // 🧹 Wipe any old local data so the new dashboard is clean
       localStorage.removeItem('sers_emergencies');
+      localStorage.removeItem('sers_staff_cache');
       window.dispatchEvent(new Event('sers_system_changed'));
 
       return { success: true, systemId };
@@ -221,8 +236,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem('sers_system_zones', JSON.stringify(systemData.zones || []));
         localStorage.setItem('sers_system_config', JSON.stringify(systemData));
 
-        // 🧹 Wipe old emergencies when entering a different system
+        // 🧹 Wipe old data when entering a different system to prevent cache contamination
         localStorage.removeItem('sers_emergencies');
+        localStorage.removeItem('sers_staff_cache');
+        localStorage.removeItem('sers_users');
         window.dispatchEvent(new Event('sers_system_changed'));
 
         return true;
@@ -235,37 +252,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const cachedSystem = JSON.parse(localStorage.getItem('sers_system_config') || 'null');
       const cachedUser = JSON.parse(localStorage.getItem('sers_current_user') || 'null');
       const staffCache = JSON.parse(localStorage.getItem('sers_staff_cache') || '[]');
+      const savedSystemId = localStorage.getItem('sers_system_id');
 
-      if (cachedSystem && (cachedSystem.accessCode === accessCode || cachedSystem.id === accessCode)) {
+      console.log('--- Offline Auth Debug ---');
+      console.log('Input Access Code:', accessCode);
+      console.log('Cached System Code:', cachedSystem?.accessCode);
+      console.log('Cached System ID:', cachedSystem?._id || cachedSystem?.id);
+      console.log('Stored System ID:', savedSystemId);
+
+      const systemMatches = cachedSystem && (
+        cachedSystem.accessCode?.toUpperCase() === accessCode?.toUpperCase() || 
+        cachedSystem._id === accessCode ||
+        cachedSystem.id === accessCode ||
+        savedSystemId === accessCode
+      );
+
+      if (systemMatches) {
+        console.log('System ID/Code matched! Checking user...');
+        
         // System code matches, now check user email
         // 1. Check if it's the last logged in user
-        if (cachedUser && cachedUser.email === email) {
+        if (cachedUser && cachedUser.email?.toLowerCase() === email?.toLowerCase()) {
+          console.log('Matched last logged in user!');
           setUser(cachedUser);
           setSystemConfig(cachedSystem);
           return true;
         }
         
         // 2. Check if it's ANY staff in the cached list
-        const foundInCache = staffCache.find((s: any) => s.email === email);
+        const foundInCache = staffCache.find((s: any) => s.email?.toLowerCase() === email?.toLowerCase());
         if (foundInCache) {
+          console.log('Matched user from staff cache!');
           setUser(foundInCache);
           setSystemConfig(cachedSystem);
           return true;
         }
 
         // 3. Guest fallback: If code matches, let any new email in as guest (offline)
+        console.log('No staff match, entering as guest.');
         const guestUser: User = {
           id: `USR_GUEST_${Date.now()}`,
           email,
           name: email.split('@')[0],
           role: 'guest',
-          locationId: cachedSystem.id || cachedSystem._id,
+          locationId: cachedSystem._id || cachedSystem.id || savedSystemId,
         };
         setUser(guestUser);
         setSystemConfig(cachedSystem);
         return true;
       }
       
+      console.error('Offline entry failed: Access code does not match any local system cache.');
       return false;
     }
   };
