@@ -28,8 +28,7 @@ export function EmergencyProvider({ children }: { children: React.ReactNode }) {
     if (storedEmergencies) {
       setEmergencies(JSON.parse(storedEmergencies));
     } else {
-      setEmergencies(MOCK_EMERGENCIES);
-      localStorage.setItem('sers_emergencies', JSON.stringify(MOCK_EMERGENCIES));
+      setEmergencies([]);
     }
 
     const staffCache = localStorage.getItem('sers_staff_cache');
@@ -42,6 +41,13 @@ export function EmergencyProvider({ children }: { children: React.ReactNode }) {
     } else {
       setUsers(MOCK_USERS);
     }
+
+    // 🧠 Listen for System Change Protocol (Wipe RAM)
+    const handleSystemChange = () => {
+      setEmergencies([]);
+    };
+    window.addEventListener('sers_system_changed', handleSystemChange);
+    return () => window.removeEventListener('sers_system_changed', handleSystemChange);
   }, []);
 
   // Save emergencies to localStorage whenever they change
@@ -116,12 +122,16 @@ export function EmergencyProvider({ children }: { children: React.ReactNode }) {
       ]
     };
 
+    // 🧠 Always pull the freshest staff list from the Offline Vault before assigning
+    const latestStaffCache = localStorage.getItem('sers_staff_cache');
+    const freshestUsers = latestStaffCache ? JSON.parse(latestStaffCache) : users;
+
     // Auto-assign staff
-    const assignedStaffIds = autoAssignStaff(newEmergency, users);
-    const assignedStaffData = users.filter(u => assignedStaffIds.includes(u.id));
+    const assignedStaffIds = autoAssignStaff(newEmergency, freshestUsers);
+    const assignedStaffData = freshestUsers.filter((u: User) => assignedStaffIds.includes(u.id));
 
     newEmergency.assignedStaff = assignedStaffIds;
-    newEmergency.assignedStaffNames = assignedStaffData.map(s => s.name);
+    newEmergency.assignedStaffNames = assignedStaffData.map((s: User) => s.name);
 
     if (assignedStaffIds.length > 0) {
       newEmergency.timeline?.push({

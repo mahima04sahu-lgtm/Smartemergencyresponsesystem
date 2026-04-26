@@ -55,11 +55,19 @@ export const getAISuggestions = async () => {
 // ─── STAFF ────────────────────────────────────────────────────────────────
 
 export const getAllStaff = async () => {
-  const systemId = localStorage.getItem("sers_system_id");
-  const url = systemId ? `${BASE}/staff?systemId=${systemId}` : `${BASE}/staff`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error("Failed to fetch staff");
-  return res.json();
+  try {
+    const systemId = localStorage.getItem("sers_system_id");
+    const url = systemId ? `${BASE}/staff?systemId=${systemId}` : `${BASE}/staff`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("Failed to fetch staff");
+    const data = await res.json();
+    return Array.isArray(data) ? data : (data.staff || []);
+  } catch (error) {
+    // 🧠 OFFLINE SURVIVAL: If Wi-Fi is dead, pull from the local memory vault!
+    const cached = localStorage.getItem('sers_staff_cache');
+    if (cached) return JSON.parse(cached);
+    throw error;
+  }
 };
 
 export const addStaff = async (data) => {

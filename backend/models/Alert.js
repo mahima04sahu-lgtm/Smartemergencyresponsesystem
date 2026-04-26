@@ -11,6 +11,8 @@ const alertSchema = new mongoose.Schema({
   reportedByName: String,
   userRole: String,
   locationId: String,
+  reportedAt: String,                               // Added to prevent sync duplication loops
+  timestamp: String,                                // Added to prevent sync duplication loops
   originalLevel: String,                            // What the user initially selected
   aiLevel: String,                                  // What AI suggests the level should be
   aiAdvice: String,                                 // Immediate safety instructions from AI

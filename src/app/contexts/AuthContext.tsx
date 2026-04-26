@@ -41,30 +41,23 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(() => {
+    const storedUser = localStorage.getItem('sers_current_user');
+    return storedUser ? JSON.parse(storedUser) : null;
+  });
+  const [systemConfig, setSystemConfig] = useState<SystemConfig | null>(() => {
+    const storedSystem = localStorage.getItem('sers_system_config');
+    return storedSystem ? JSON.parse(storedSystem) : null;
+  });
   const [users, setUsers] = useState<User[]>([]);
-  const [systemConfig, setSystemConfig] = useState<SystemConfig | null>(null);
 
   useEffect(() => {
-    // Load users from localStorage or use mock data
     const storedUsers = localStorage.getItem('sers_users');
     if (storedUsers) {
       setUsers(JSON.parse(storedUsers));
     } else {
       setUsers(MOCK_USERS);
       localStorage.setItem('sers_users', JSON.stringify(MOCK_USERS));
-    }
-
-    // Check if user is logged in
-    const storedUser = localStorage.getItem('sers_current_user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-
-    // Load system config
-    const storedSystem = localStorage.getItem('sers_system_config');
-    if (storedSystem) {
-      setSystemConfig(JSON.parse(storedSystem));
     }
   }, []);
 
@@ -195,6 +188,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(adminUser);
       localStorage.setItem('sers_current_user', JSON.stringify(adminUser));
 
+      // 🧹 Wipe any old local emergencies so the new dashboard is clean
+      localStorage.removeItem('sers_emergencies');
+      window.dispatchEvent(new Event('sers_system_changed'));
+
       return { success: true, systemId };
     } catch (error) {
       console.error('System creation error:', error);
@@ -217,6 +214,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem('sers_system_id', systemData._id);
         localStorage.setItem('sers_system_zones', JSON.stringify(systemData.zones || []));
         localStorage.setItem('sers_system_config', JSON.stringify(systemData));
+
+        // 🧹 Wipe old emergencies when entering a different system
+        localStorage.removeItem('sers_emergencies');
+        window.dispatchEvent(new Event('sers_system_changed'));
 
         return true;
       }

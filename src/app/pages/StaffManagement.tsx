@@ -100,6 +100,11 @@ export function StaffManagement() {
       // data might be an array or { staff: [] } depending on backend response
       const staffList = Array.isArray(data) ? data : (data.staff || []);
       setStaff(staffList);
+      
+      // 🧠 OFFLINE SYNC: Instantly save to local memory so AuthContext can use it when Wi-Fi drops
+      if (staffList.length > 0) {
+        localStorage.setItem('sers_staff_cache', JSON.stringify(staffList));
+      }
     } catch (error) {
       console.error('Failed to load staff:', error);
       toast.error('Failed to load staff from server');
