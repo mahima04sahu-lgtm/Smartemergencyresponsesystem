@@ -87,7 +87,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Fallback for demo users and old systems not in MongoDB
-    const allUsers: User[] = JSON.parse(localStorage.getItem('sers_users') || JSON.stringify(MOCK_USERS));
+    const localUsers: User[] = JSON.parse(localStorage.getItem('sers_users') || JSON.stringify(MOCK_USERS));
+    const cachedStaff: User[] = JSON.parse(localStorage.getItem('sers_staff_cache') || '[]');
+    const allUsers = [...localUsers, ...cachedStaff];
+
     const foundUser = allUsers.find(u => u.email === email);
     if (foundUser) {
       setUser(foundUser);
@@ -99,7 +102,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loginByPhone = async (phone: string): Promise<boolean> => {
     await new Promise(resolve => setTimeout(resolve, 600));
-    const allUsers: User[] = JSON.parse(localStorage.getItem('sers_users') || JSON.stringify(MOCK_USERS));
+    const localUsers: User[] = JSON.parse(localStorage.getItem('sers_users') || JSON.stringify(MOCK_USERS));
+    const cachedStaff: User[] = JSON.parse(localStorage.getItem('sers_staff_cache') || '[]');
+    const allUsers = [...localUsers, ...cachedStaff];
+    
     const foundUser = allUsers.find(u => u.phone === phone);
     if (foundUser) {
       setUser(foundUser);
