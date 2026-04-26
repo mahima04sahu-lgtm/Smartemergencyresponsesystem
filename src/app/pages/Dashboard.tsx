@@ -499,7 +499,7 @@ export function Dashboard() {
       </div>
 
       {/* ─── RIGHT PANEL: AI ASSISTANT & SUGGESTIONS ─── */}
-      <div className={`${showSuggestions ? 'w-72' : 'w-10'} transition-all duration-300 bg-gray-900 text-white shrink-0 flex flex-col border-l border-gray-800 relative overflow-hidden`}>
+      <div className={`${showSuggestions ? 'w-72' : 'w-10'} hidden lg:flex transition-all duration-300 bg-gray-900 text-white shrink-0 flex-col border-l border-gray-800 relative overflow-hidden`}>
         {/* Toggle button */}
         <button
           onClick={() => setShowSuggestions(p => !p)}

@@ -23,7 +23,7 @@ export function Sidebar() {
   const { user, logout, systemConfig } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(window.innerWidth < 768);
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -42,7 +42,7 @@ export function Sidebar() {
   };
 
   return (
-    <div className={`${collapsed ? 'w-16' : 'w-60'} bg-gray-900 text-white h-screen flex flex-col transition-all duration-300 shrink-0 relative z-20`}>
+    <div className={`${collapsed ? 'w-0 md:w-16 overflow-hidden' : 'w-60'} bg-gray-900 text-white h-full absolute md:relative flex flex-col transition-all duration-300 shrink-0 z-50 shadow-2xl md:shadow-none`}>
       {/* Collapse toggle */}
       <button
         onClick={() => setCollapsed(p => !p)}
