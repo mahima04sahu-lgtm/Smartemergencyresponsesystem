@@ -12,7 +12,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Phone,
-  Shield
+  Shield,
+  Menu,
+  X
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
@@ -42,7 +44,28 @@ export function Sidebar() {
   };
 
   return (
-    <div className={`${collapsed ? 'w-0 md:w-16 overflow-hidden' : 'w-60'} bg-gray-900 text-white h-full absolute md:relative flex flex-col transition-all duration-300 shrink-0 z-50 shadow-2xl md:shadow-none`}>
+    <>
+      {/* Mobile Floating Menu Button */}
+      {collapsed && (
+        <button
+          onClick={() => setCollapsed(false)}
+          className="md:hidden fixed bottom-6 left-6 w-12 h-12 bg-gray-900 text-white rounded-full flex items-center justify-center shadow-2xl shadow-gray-900/50 z-40 border-2 border-gray-700"
+        >
+          <Menu className="w-6 h-6" />
+        </button>
+      )}
+
+      {/* Sidebar Drawer */}
+      <div className={`${collapsed ? 'w-0 md:w-16 overflow-hidden' : 'w-60'} bg-gray-900 text-white h-full absolute md:relative flex flex-col transition-all duration-300 shrink-0 z-50 shadow-2xl md:shadow-none`}>
+        {/* Mobile Close Button */}
+        {!collapsed && (
+          <button
+            onClick={() => setCollapsed(true)}
+            className="md:hidden absolute top-4 right-4 w-8 h-8 flex items-center justify-center bg-gray-800 rounded-full text-gray-400 hover:text-white hover:bg-gray-700 transition-colors z-50"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
       {/* Collapse toggle */}
       <button
         onClick={() => setCollapsed(p => !p)}
@@ -94,7 +117,15 @@ export function Sidebar() {
           const Icon = item.icon;
           const active = isActive(item.path);
           return (
-            <Link key={item.path} to={item.path}>
+            <Link 
+              key={item.path} 
+              to={item.path}
+              onClick={() => {
+                if (window.innerWidth < 768) {
+                  setCollapsed(true);
+                }
+              }}
+            >
               <div
                 className={`flex items-center ${collapsed ? 'justify-center px-0 py-3' : 'gap-3 px-3 py-2.5'} rounded-xl transition-all cursor-pointer ${
                   active
@@ -148,5 +179,6 @@ export function Sidebar() {
         </button>
       </div>
     </div>
+    </>
   );
 }

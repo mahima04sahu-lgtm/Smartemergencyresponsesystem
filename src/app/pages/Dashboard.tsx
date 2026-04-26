@@ -213,7 +213,7 @@ export function Dashboard() {
   const [activeTab, setActiveTab] = useState('active');
   const [refreshKey, setRefreshKey] = useState(0);
   const [showQR, setShowQR] = useState(false);
-  const [showSuggestions, setShowSuggestions] = useState(true);
+  const [showSuggestions, setShowSuggestions] = useState(window.innerWidth >= 1024);
   const [dismissedSuggestions, setDismissedSuggestions] = useState<string[]>([]);
   const qrRef = useRef<HTMLDivElement>(null);
 
@@ -498,8 +498,18 @@ export function Dashboard() {
         </div>
       </div>
 
+      {/* Mobile Floating AI Button */}
+      {!showSuggestions && (
+        <button
+          onClick={() => setShowSuggestions(true)}
+          className="lg:hidden fixed bottom-6 right-6 w-12 h-12 bg-red-600 text-white rounded-full flex items-center justify-center shadow-2xl shadow-red-600/50 z-40 border-2 border-red-500"
+        >
+          <Brain className="w-6 h-6" />
+        </button>
+      )}
+
       {/* ─── RIGHT PANEL: AI ASSISTANT & SUGGESTIONS ─── */}
-      <div className={`${showSuggestions ? 'w-72' : 'w-10'} hidden lg:flex transition-all duration-300 bg-gray-900 text-white shrink-0 flex-col border-l border-gray-800 relative overflow-hidden`}>
+      <div className={`${showSuggestions ? 'w-72 md:w-80 translate-x-0' : 'w-0 translate-x-full lg:w-10 lg:translate-x-0'} absolute lg:relative right-0 top-0 bottom-0 z-50 flex transition-all duration-300 bg-gray-900 text-white shrink-0 flex-col border-l border-gray-800 overflow-hidden shadow-2xl lg:shadow-none`}>
         {/* Toggle button */}
         <button
           onClick={() => setShowSuggestions(p => !p)}
@@ -512,11 +522,20 @@ export function Dashboard() {
           <div className="flex flex-col h-full overflow-hidden">
             {/* Panel header */}
             <div className="px-4 py-4 border-b border-gray-700 shrink-0">
-              <div className="flex items-center gap-2 mb-1">
-                <Brain className="w-4 h-4 text-red-500" />
-                <h3 className="font-bold text-sm">
-                  {isStaff ? 'AI Suggestions' : 'Safety Assistant'}
-                </h3>
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2">
+                  <Brain className="w-4 h-4 text-red-500" />
+                  <h3 className="font-bold text-sm">
+                    {isStaff ? 'AI Suggestions' : 'Safety Assistant'}
+                  </h3>
+                </div>
+                {/* Mobile Close Button */}
+                <button 
+                  onClick={() => setShowSuggestions(false)}
+                  className="lg:hidden w-8 h-8 flex items-center justify-center bg-gray-800 rounded-full text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
               <p className="text-xs text-gray-500">
                 {isStaff ? 'Smart recommendations' : 'Live help for your emergency'}
